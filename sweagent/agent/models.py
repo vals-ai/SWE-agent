@@ -46,6 +46,8 @@ except ImportError:
     readline = None
 
 litellm.suppress_debug_info = True
+litellm.modify_params = True
+litellm.drop_params = True
 
 
 _THREADS_THAT_USED_API_KEYS = []
@@ -75,7 +77,9 @@ class GenericAPIModelConfig(PydanticBaseModel):
         description="Cost limit for every instance (task).",
     )
     total_cost_limit: float = Field(default=0.0, description="Total cost limit.")
-    per_instance_call_limit: int = Field(default=0, description="Per instance call limit.")
+    per_instance_call_limit: int = Field(
+        default=0, description="Per instance call limit."
+    )
     temperature: float = 0.0
     """Sampling temperature"""
     top_p: float | None = 1.0
@@ -154,7 +158,9 @@ class GenericAPIModelConfig(PydanticBaseModel):
             env_var_name = api_key[1:]
             api_key = os.getenv(env_var_name, "")
             if not api_key:
-                get_logger("swea-config", emoji="🔧").warning(f"Environment variable {env_var_name} not set")
+                get_logger("swea-config", emoji="🔧").warning(
+                    f"Environment variable {env_var_name} not set"
+                )
                 return []
         return api_key.split(":::")
 
@@ -184,13 +190,17 @@ class GenericAPIModelConfig(PydanticBaseModel):
 
 
 class ReplayModelConfig(GenericAPIModelConfig):
-    replay_path: Path = Field(description="Path to replay file when using the replay model.")
+    replay_path: Path = Field(
+        description="Path to replay file when using the replay model."
+    )
 
     per_instance_cost_limit: float = Field(
-        default=0.0, description="Cost limit for every instance (task). This is a dummy value here."
+        default=0.0,
+        description="Cost limit for every instance (task). This is a dummy value here.",
     )
     total_cost_limit: float = Field(
-        default=0.0, description="Cost limit for all instances (tasks). This is a dummy value here."
+        default=0.0,
+        description="Cost limit for all instances (tasks). This is a dummy value here.",
     )
 
     name: Literal["replay"] = Field(default="replay", description="Model name.")
@@ -201,13 +211,17 @@ class ReplayModelConfig(GenericAPIModelConfig):
 class InstantEmptySubmitModelConfig(GenericAPIModelConfig):
     """Model that immediately submits an empty patch"""
 
-    name: Literal["instant_empty_submit"] = Field(default="instant_empty_submit", description="Model name.")
+    name: Literal["instant_empty_submit"] = Field(
+        default="instant_empty_submit", description="Model name."
+    )
 
     per_instance_cost_limit: float = Field(
-        default=0.0, description="Cost limit for every instance (task). This is a dummy value here."
+        default=0.0,
+        description="Cost limit for every instance (task). This is a dummy value here.",
     )
     total_cost_limit: float = Field(
-        default=0.0, description="Cost limit for all instances (tasks). This is a dummy value here."
+        default=0.0,
+        description="Cost limit for all instances (tasks). This is a dummy value here.",
     )
     delay: float = 0.0
     """Delay before answering"""
@@ -219,21 +233,28 @@ class HumanModelConfig(GenericAPIModelConfig):
     name: Literal["human"] = Field(default="human", description="Model name.")
 
     per_instance_cost_limit: float = Field(
-        default=0.0, description="Cost limit for every instance (task). This is a dummy value here."
+        default=0.0,
+        description="Cost limit for every instance (task). This is a dummy value here.",
     )
-    total_cost_limit: float = Field(default=0.0, description="Cost limit for all instances (tasks).")
+    total_cost_limit: float = Field(
+        default=0.0, description="Cost limit for all instances (tasks)."
+    )
     cost_per_call: float = 0.0
     model_config = ConfigDict(extra="forbid")
 
 
 class HumanThoughtModelConfig(HumanModelConfig):
-    name: Literal["human_thought"] = Field(default="human_thought", description="Model name.")
+    name: Literal["human_thought"] = Field(
+        default="human_thought", description="Model name."
+    )
 
     per_instance_cost_limit: float = Field(
-        default=0.0, description="Cost limit for every instance (task). This is a dummy value here."
+        default=0.0,
+        description="Cost limit for every instance (task). This is a dummy value here.",
     )
     total_cost_limit: float = Field(
-        default=0.0, description="Cost limit for all instances (tasks). This is a dummy value here."
+        default=0.0,
+        description="Cost limit for all instances (tasks). This is a dummy value here.",
     )
     cost_per_call: float = 0.0
 
@@ -276,16 +297,29 @@ class InstanceStats(PydanticBaseModel):
     tokens_sent: int = 0
     tokens_received: int = 0
     api_calls: int = 0
+    tool_call_definitions: dict[str, float] = {}
 
     def __add__(self, other: InstanceStats) -> InstanceStats:
         return InstanceStats(
-            **{field: getattr(self, field) + getattr(other, field) for field in self.model_fields.keys()},
+            **{
+                field: getattr(self, field) + getattr(other, field)
+                for field in self.model_fields.keys()
+            },
         )
 
     def __sub__(self, other: InstanceStats) -> InstanceStats:
         return InstanceStats(
-            **{field: getattr(self, field) - getattr(other, field) for field in self.model_fields.keys()},
+            **{
+                field: getattr(self, field) - getattr(other, field)
+                for field in self.model_fields.keys()
+            },
         )
+
+    def update_tool_call_definition(self, tool_names: list[str]) -> None:
+        for tool_name in tool_names:
+            if tool_name not in self.tool_call_definitions:
+                self.tool_call_definitions[tool_name] = 0
+            self.tool_call_definitions[tool_name] += 1
 
 
 class AbstractModel(ABC):
@@ -308,8 +342,8 @@ class AbstractModel(ABC):
 def _handle_raise_commands(action: str) -> None:
     if action == "raise_runtime":
         raise SwerexException()
-    elif action == "raise_cost":
-        raise CostLimitExceededError()
+    # elif action == "raise_cost":
+    #     raise CostLimitExceededError()
     elif action == "raise_context":
         raise ContextWindowExceededError()
     elif action.startswith("raise_function_calling"):
@@ -330,7 +364,9 @@ class HumanModel(AbstractModel):
 
         # Determine which commands require multi-line input
         self.multi_line_command_endings = {
-            command.name: command.end_name for command in tools.commands if command.end_name is not None
+            command.name: command.end_name
+            for command in tools.commands
+            if command.end_name is not None
         }
         self._readline_histfile = REPO_ROOT / ".swe-agent-human-history"
         self._load_readline_history()
@@ -340,7 +376,9 @@ class HumanModel(AbstractModel):
         if readline is None:
             return
         if self._readline_histfile.is_file():
-            self.logger.debug(f"Loading readline history from {self._readline_histfile}")
+            self.logger.debug(
+                f"Loading readline history from {self._readline_histfile}"
+            )
             readline.read_history_file(self._readline_histfile)
 
     def _save_readline_history(self) -> None:
@@ -354,12 +392,12 @@ class HumanModel(AbstractModel):
     ) -> None:
         self.stats.instance_cost += self.config.cost_per_call
         self.stats.api_calls += 1
-        if self.stats.instance_cost > self.config.per_instance_cost_limit:
-            msg = f"Instance cost limit exceeded: {self.stats.instance_cost} > {self.config.per_instance_cost_limit}"
-            raise InstanceCostLimitExceededError(msg)
-        if self.stats.instance_cost > self.config.total_cost_limit:
-            msg = f"Total cost limit exceeded: {self.stats.instance_cost} > {self.config.total_cost_limit}"
-            raise TotalCostLimitExceededError(msg)
+        # if self.stats.instance_cost > self.config.per_instance_cost_limit:
+        #     msg = f"Instance cost limit exceeded: {self.stats.instance_cost} > {self.config.per_instance_cost_limit}"
+        #     raise InstanceCostLimitExceededError(msg)
+        # if self.stats.instance_cost > self.config.total_cost_limit:
+        #     msg = f"Total cost limit exceeded: {self.stats.instance_cost} > {self.config.total_cost_limit}"
+        #     raise TotalCostLimitExceededError(msg)
 
     def _query(
         self,
@@ -382,7 +420,9 @@ class HumanModel(AbstractModel):
                     # Continue reading input until terminating keyword inputted
                     break
             action = "\n".join(buffer)
-        elif action.strip() == "start_multiline_command":  # do arbitrary multi-line input
+        elif (
+            action.strip() == "start_multiline_command"
+        ):  # do arbitrary multi-line input
             buffer = []
             while True:
                 action = input("... ")
@@ -403,7 +443,13 @@ class HumanModel(AbstractModel):
         self._update_stats()
         return {"message": action}
 
-    def query(self, history: History, action_prompt: str = "> ", n: int | None = None, **kwargs) -> dict | list[dict]:
+    def query(
+        self,
+        history: History,
+        action_prompt: str = "> ",
+        n: int | None = None,
+        **kwargs,
+    ) -> dict | list[dict]:
         """Wrapper to separate action prompt from formatting"""
         out = []
         n_samples = n or 1
@@ -452,7 +498,8 @@ class ReplayModel(AbstractModel):
             raise FileNotFoundError(msg)
 
         self._replays = [
-            list(json.loads(x).values())[0] for x in Path(self.config.replay_path).read_text().splitlines(keepends=True)
+            list(json.loads(x).values())[0]
+            for x in Path(self.config.replay_path).read_text().splitlines(keepends=True)
         ]
         self._replay_idx = 0
         self._action_idx = 0
@@ -473,7 +520,9 @@ class ReplayModel(AbstractModel):
             action = actions[self._action_idx]
         except IndexError:
             # log error
-            self.logger.error("Reached end of replay trajectory without submitting. Submitting now.")
+            self.logger.error(
+                "Reached end of replay trajectory without submitting. Submitting now."
+            )
             if self.use_function_calling:
                 action = {
                     "message": f"Calling `{self.submit_command}` to submit.",
@@ -574,21 +623,34 @@ class LiteLLMModel(AbstractModel):
         if self.config.max_input_tokens is not None:
             self.model_max_input_tokens = self.config.max_input_tokens
         else:
-            self.model_max_input_tokens = litellm.model_cost.get(self.config.name, {}).get("max_input_tokens")
+            self.model_max_input_tokens = litellm.model_cost.get(
+                self.config.name, {}
+            ).get("max_input_tokens")
 
         if self.config.max_output_tokens is not None:
             self.model_max_output_tokens = self.config.max_output_tokens
         else:
-            self.model_max_output_tokens = litellm.model_cost.get(self.config.name, {}).get("max_output_tokens")
+            self.model_max_output_tokens = litellm.model_cost.get(
+                self.config.name, {}
+            ).get("max_output_tokens")
 
-        self.lm_provider = litellm.model_cost.get(self.config.name, {}).get("litellm_provider")
+        self.lm_provider = litellm.model_cost.get(self.config.name, {}).get(
+            "litellm_provider"
+        )
 
     @property
     def instance_cost_limit(self) -> float:
         """Cost limit for the model. Returns 0 if there is no limit."""
         return self.config.per_instance_cost_limit
 
-    def _update_stats(self, *, input_tokens: int, output_tokens: int, cost: float) -> None:
+    def _update_stats(
+        self,
+        *,
+        input_tokens: int,
+        output_tokens: int,
+        cost: float,
+        tool_names: list[str] | None = None,
+    ) -> None:
         with GLOBAL_STATS_LOCK:
             GLOBAL_STATS.total_cost += cost
         self.stats.instance_cost += cost
@@ -596,35 +658,44 @@ class LiteLLMModel(AbstractModel):
         self.stats.tokens_received += output_tokens
         self.stats.api_calls += 1
 
+        if tool_names is not None:
+            self.stats.update_tool_call_definition(tool_names)
+
         # Log updated cost values to std. err
         self.logger.debug(
             f"input_tokens={input_tokens:,}, "
             f"output_tokens={output_tokens:,}, "
             f"instance_cost={self.stats.instance_cost:.2f}, "
-            f"cost={cost:.2f}",
+            f"cost={cost:.2f}"
+            f"{', tool_names=' + ', '.join(tool_names) if tool_names is not None else ''}"
         )
         self.logger.debug(
             f"total_tokens_sent={self.stats.tokens_sent:,}, "
             f"total_tokens_received={self.stats.tokens_received:,}, "
             f"total_cost={GLOBAL_STATS.total_cost:.2f}, "
-            f"total_api_calls={self.stats.api_calls:,}",
+            f"total_api_calls={self.stats.api_calls:,}, "
+            f"tool_names={', '.join(sorted(self.stats.tool_call_definitions.keys()))}"
         )
 
         # Check whether total cost or instance cost limits have been exceeded
-        if 0 < self.config.total_cost_limit < GLOBAL_STATS.total_cost:
-            self.logger.warning(f"Cost {GLOBAL_STATS.total_cost:.2f} exceeds limit {self.config.total_cost_limit:.2f}")
-            msg = "Total cost limit exceeded"
-            raise TotalCostLimitExceededError(msg)
+        # if 0 < self.config.total_cost_limit < GLOBAL_STATS.total_cost:
+        #     self.logger.warning(
+        #         f"Cost {GLOBAL_STATS.total_cost:.2f} exceeds limit {self.config.total_cost_limit:.2f}"
+        #     )
+        #     msg = "Total cost limit exceeded"
+        #     raise TotalCostLimitExceededError(msg)
 
-        if 0 < self.config.per_instance_cost_limit < self.stats.instance_cost:
-            self.logger.warning(
-                f"Cost {self.stats.instance_cost:.2f} exceeds limit {self.config.per_instance_cost_limit:.2f}"
-            )
-            msg = "Instance cost limit exceeded"
-            raise InstanceCostLimitExceededError(msg)
+        # if 0 < self.config.per_instance_cost_limit < self.stats.instance_cost:
+        #     self.logger.warning(
+        #         f"Cost {self.stats.instance_cost:.2f} exceeds limit {self.config.per_instance_cost_limit:.2f}"
+        #     )
+        #     msg = "Instance cost limit exceeded"
+        #     raise InstanceCostLimitExceededError(msg)
 
         if 0 < self.config.per_instance_call_limit < self.stats.api_calls:
-            self.logger.warning(f"API calls {self.stats.api_calls} exceeds limit {self.config.per_instance_call_limit}")
+            self.logger.warning(
+                f"API calls {self.stats.api_calls} exceeds limit {self.config.per_instance_call_limit}"
+            )
             msg = "Per instance call limit exceeded"
             raise InstanceCallLimitExceededError(msg)
 
@@ -636,10 +707,15 @@ class LiteLLMModel(AbstractModel):
             GLOBAL_STATS.last_query_timestamp = time.time()
 
     def _single_query(
-        self, messages: list[dict[str, str]], n: int | None = None, temperature: float | None = None
+        self,
+        messages: list[dict[str, str]],
+        n: int | None = None,
+        temperature: float | None = None,
     ) -> list[dict]:
         self._sleep()
-        input_tokens: int = litellm.utils.token_counter(messages=messages, model=self.config.name)
+        input_tokens: int = litellm.utils.token_counter(
+            messages=messages, model=self.config.name
+        )
         if self.model_max_input_tokens is None:
             msg = (
                 f"No max input tokens found for model {self.config.name!r}. "
@@ -663,7 +739,9 @@ class LiteLLMModel(AbstractModel):
             response: litellm.types.utils.ModelResponse = litellm.completion(  # type: ignore
                 model=self.config.name,
                 messages=messages,
-                temperature=self.config.temperature if temperature is None else temperature,
+                temperature=(
+                    self.config.temperature if temperature is None else temperature
+                ),
                 top_p=self.config.top_p,
                 api_version=self.config.api_version,
                 api_key=self.config.choose_api_key(),
@@ -685,7 +763,10 @@ class LiteLLMModel(AbstractModel):
             cost = litellm.cost_calculator.completion_cost(response)
         except Exception as e:
             self.logger.debug(f"Error calculating cost: {e}, setting cost to 0.")
-            if self.config.per_instance_cost_limit > 0 or self.config.total_cost_limit > 0:
+            if (
+                self.config.per_instance_cost_limit > 0
+                or self.config.total_cost_limit > 0
+            ):
                 msg = (
                     f"Error calculating cost: {e} for your model {self.config.name}. If this is ok "
                     "(local models, etc.), please make sure you set `per_instance_cost_limit` and "
@@ -698,22 +779,34 @@ class LiteLLMModel(AbstractModel):
         n_choices = n if n is not None else 1
         outputs = []
         output_tokens = 0
+        tool_names = None
         for i in range(n_choices):
             output = choices[i].message.content or ""
-            output_tokens += litellm.utils.token_counter(text=output, model=self.config.name)
+            output_tokens += litellm.utils.token_counter(
+                text=output, model=self.config.name
+            )
             output_dict = {"message": output}
             if self.tools.use_function_calling:
                 if response.choices[i].message.tool_calls:  # type: ignore
                     tool_calls = [call.to_dict() for call in response.choices[i].message.tool_calls]  # type: ignore
+                    tool_names = [call["function"]["name"] for call in tool_calls]
                 else:
                     tool_calls = []
                 output_dict["tool_calls"] = tool_calls
             outputs.append(output_dict)
-        self._update_stats(input_tokens=input_tokens, output_tokens=output_tokens, cost=cost)
+        self._update_stats(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost=cost,
+            tool_names=tool_names,
+        )
         return outputs
 
     def _query(
-        self, messages: list[dict[str, str]], n: int | None = None, temperature: float | None = None
+        self,
+        messages: list[dict[str, str]],
+        n: int | None = None,
+        temperature: float | None = None,
     ) -> list[dict]:
         if n is None:
             return self._single_query(messages, temperature=temperature)
@@ -723,14 +816,21 @@ class LiteLLMModel(AbstractModel):
             outputs.extend(self._single_query(messages))
         return outputs
 
-    def query(self, history: History, n: int = 1, temperature: float | None = None) -> list[dict] | dict:
+    def query(
+        self, history: History, n: int = 1, temperature: float | None = None
+    ) -> list[dict] | dict:
         messages = self._history_to_messages(history)
 
         def retry_warning(retry_state: RetryCallState):
             exception_info = ""
-            if attempt.retry_state.outcome is not None and attempt.retry_state.outcome.exception() is not None:
+            if (
+                attempt.retry_state.outcome is not None
+                and attempt.retry_state.outcome.exception() is not None
+            ):
                 exception = attempt.retry_state.outcome.exception()
-                exception_info = f" due to {exception.__class__.__name__}: {str(exception)}"
+                exception_info = (
+                    f" due to {exception.__class__.__name__}: {str(exception)}"
+                )
 
             self.logger.warning(
                 f"Retrying LM query: attempt {attempt.retry_state.attempt_number} "
@@ -740,7 +840,9 @@ class LiteLLMModel(AbstractModel):
 
         for attempt in Retrying(
             stop=stop_after_attempt(self.config.retry.retries),
-            wait=wait_random_exponential(min=self.config.retry.min_wait, max=self.config.retry.max_wait),
+            wait=wait_random_exponential(
+                min=self.config.retry.min_wait, max=self.config.retry.max_wait
+            ),
             reraise=True,
             retry=retry_if_not_exception_type(
                 (
@@ -789,7 +891,11 @@ class LiteLLMModel(AbstractModel):
                     "tool_call_id": history_item["tool_call_ids"][0],  # type: ignore
                 }
             elif (tool_calls := history_item.get("tool_calls")) is not None:
-                message = {"role": role, "content": history_item["content"], "tool_calls": tool_calls}
+                message = {
+                    "role": role,
+                    "content": history_item["content"],
+                    "tool_calls": tool_calls,
+                }
             else:
                 message = {"role": role, "content": history_item["content"]}
             if "cache_control" in history_item:
@@ -804,7 +910,11 @@ def get_model(args: ModelConfig, tools: ToolConfig) -> AbstractModel:
     """Returns correct model object given arguments and commands"""
     # Convert GenericAPIModelConfig to specific model config if needed
     if isinstance(args, GenericAPIModelConfig) and not isinstance(
-        args, HumanModelConfig | HumanThoughtModelConfig | ReplayModelConfig | InstantEmptySubmitModelConfig
+        args,
+        HumanModelConfig
+        | HumanThoughtModelConfig
+        | ReplayModelConfig
+        | InstantEmptySubmitModelConfig,
     ):
         if args.name == "human":
             args = HumanModelConfig(**args.model_dump())
@@ -816,16 +926,26 @@ def get_model(args: ModelConfig, tools: ToolConfig) -> AbstractModel:
             args = InstantEmptySubmitModelConfig(**args.model_dump())
 
     if args.name == "human":
-        assert isinstance(args, HumanModelConfig), f"Expected {HumanModelConfig}, got {args}"
+        assert isinstance(
+            args, HumanModelConfig
+        ), f"Expected {HumanModelConfig}, got {args}"
         return HumanModel(args, tools)
     if args.name == "human_thought":
-        assert isinstance(args, HumanThoughtModelConfig), f"Expected {HumanThoughtModelConfig}, got {args}"
+        assert isinstance(
+            args, HumanThoughtModelConfig
+        ), f"Expected {HumanThoughtModelConfig}, got {args}"
         return HumanThoughtModel(args, tools)
     if args.name == "replay":
-        assert isinstance(args, ReplayModelConfig), f"Expected {ReplayModelConfig}, got {args}"
+        assert isinstance(
+            args, ReplayModelConfig
+        ), f"Expected {ReplayModelConfig}, got {args}"
         return ReplayModel(args, tools)
     elif args.name == "instant_empty_submit":
-        assert isinstance(args, InstantEmptySubmitModelConfig), f"Expected {InstantEmptySubmitModelConfig}, got {args}"
+        assert isinstance(
+            args, InstantEmptySubmitModelConfig
+        ), f"Expected {InstantEmptySubmitModelConfig}, got {args}"
         return InstantEmptySubmitTestModel(args, tools)
-    assert isinstance(args, GenericAPIModelConfig), f"Expected {GenericAPIModelConfig}, got {args}"
+    assert isinstance(
+        args, GenericAPIModelConfig
+    ), f"Expected {GenericAPIModelConfig}, got {args}"
     return LiteLLMModel(args, tools)
