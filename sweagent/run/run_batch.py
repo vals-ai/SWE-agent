@@ -444,6 +444,7 @@ class RunBatch:
         if not pred_content.strip():
             self.logger.warning("Found empty prediction: %s. Removing.", pred_path)
             pred_path.unlink()
+            log_path.unlink()
             return False
 
         pred_json: dict[str, str] = json.loads(pred_content)
@@ -453,6 +454,7 @@ class RunBatch:
                 pred_path,
             )
             pred_path.unlink()
+            log_path.unlink()
             return False
 
         content = log_path.read_text()
