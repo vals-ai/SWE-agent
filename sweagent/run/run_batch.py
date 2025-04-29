@@ -446,7 +446,7 @@ class RunBatch:
             pred_path.unlink()
             return False
 
-        pred_json = json.loads(pred_content)
+        pred_json: dict[str, str] = json.loads(pred_content)
         if pred_json.get("model_patch", None) is None:
             self.logger.warning(
                 "Found existing trajectory with no model patch: %s. Removing.",
