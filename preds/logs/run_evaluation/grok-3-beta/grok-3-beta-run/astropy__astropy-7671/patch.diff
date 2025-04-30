@@ -1,0 +1,28 @@
+diff --git a/astropy/utils/introspection.py b/astropy/utils/introspection.py
+index 3e784f9fc3..6a00ad5fd5 100644
+--- a/astropy/utils/introspection.py
++++ b/astropy/utils/introspection.py
+@@ -6,7 +6,7 @@
+ import inspect
+ import types
+ import importlib
+-from distutils.version import LooseVersion
++from packaging.version import Version as LooseVersion
+ 
+ 
+ __all__ = ['resolve_name', 'minversion', 'find_current_module',
+diff --git a/reproduce_minversion.py b/reproduce_minversion.py
+new file mode 100644
+index 0000000000..6f88664841
+--- /dev/null
++++ b/reproduce_minversion.py
+@@ -0,0 +1,8 @@
++
++from astropy.utils import minversion
++
++try:
++    result = minversion('numpy', '1.14dev')
++    print('Result:', result)
++except TypeError as e:
++    print('TypeError occurred:', str(e))
+\ No newline at end of file

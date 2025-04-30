@@ -421,6 +421,7 @@ class RunBatch:
 
     def should_skip(self, instance: BatchInstance) -> bool:
         """Check if we should skip this instance"""
+        self.logger.info("entering") 
         if self._redo_existing:
             return False
 
@@ -448,6 +449,7 @@ class RunBatch:
             return False
 
         pred_json: dict[str, str] = json.loads(pred_content)
+        self.logger.warning(pred_json)
         if pred_json.get("model_patch", None) is None:
             self.logger.warning(
                 "Found existing trajectory with no model patch: %s. Removing.",

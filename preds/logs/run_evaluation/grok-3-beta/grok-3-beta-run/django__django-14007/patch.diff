@@ -1,0 +1,73 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index f02199d97c..711988f3e4 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -1412,12 +1412,15 @@ class SQLInsertCompiler(SQLCompiler):
+             if not self.returning_fields:
+                 return []
+             if self.connection.features.can_return_rows_from_bulk_insert and len(self.query.objs) > 1:
+-                return self.connection.ops.fetch_returned_insert_rows(cursor)
++                rows = self.connection.ops.fetch_returned_insert_rows(cursor)
++                return [[field.from_db_value(value, None, self.connection) for value, field in zip(row, self.returning_fields)] for row in rows]
+             if self.connection.features.can_return_columns_from_insert:
+                 assert len(self.query.objs) == 1
+-                return [self.connection.ops.fetch_returned_insert_columns(cursor, self.returning_params)]
+-            return [(self.connection.ops.last_insert_id(
+-                cursor, self.query.get_meta().db_table, self.query.get_meta().pk.column
++                row = self.connection.ops.fetch_returned_insert_columns(cursor, self.returning_params)
++                return [[field.from_db_value(value, None, self.connection) for value, field in zip(row, self.returning_fields)]]
++            return [(self.query.get_meta().pk.from_db_value(
++                self.connection.ops.last_insert_id(cursor, self.query.get_meta().db_table, self.query.get_meta().pk.column),
++                None, self.connection
+             ),)]
+ 
+ 
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..48e91fb83a
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,42 @@
++
++from django.db import models
++
++class MyIntWrapper:
++    def __init__(self, value):
++        self.value = value
++    def __repr__(self):
++        return f'<MyIntWrapper: {self.value}>'
++    def __int__(self):
++        return self.value
++
++class MyAutoField(models.BigAutoField):
++    def from_db_value(self, value, expression, connection):
++        if value is None:
++            return None
++        return MyIntWrapper(value)
++    def get_prep_value(self, value):
++        if value is None:
++            return None
++        return int(value)
++
++class AutoModel(models.Model):
++    id = MyAutoField(primary_key=True)
++
++# Test code
++try:
++    # First, create a record to test retrieval
++    am = AutoModel.objects.create()
++    print('Created object ID (should be wrapped after fix):', am.id)
++    
++    # Test retrieval of existing object
++    am2 = AutoModel.objects.first()
++    print('Retrieved object ID (should be wrapped):', am2.id)
++    
++    # Test bulk create if supported
++    ams = [AutoModel()]
++    AutoModel.objects.bulk_create(ams)
++    print('Bulk created object ID (should be wrapped after fix):', ams[0].id)
++except Exception as e:
++    print('Error:', str(e))
++
++print('Script completed successfully, no errors.')
+\ No newline at end of file

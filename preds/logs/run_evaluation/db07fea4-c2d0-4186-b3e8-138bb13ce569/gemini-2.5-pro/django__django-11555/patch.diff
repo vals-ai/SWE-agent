@@ -1,0 +1,152 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index eaccc96d7d..f979393769 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -7,6 +7,7 @@ from django.core.exceptions import EmptyResultSet, FieldError
+ from django.db.models.constants import LOOKUP_SEP
+ from django.db.models.expressions import OrderBy, Random, RawSQL, Ref, Value
+ from django.db.models.functions import Cast
++from django.db.models.expressions import OrderBy, F
+ from django.db.models.query_utils import QueryWrapper, select_related_descend
+ from django.db.models.sql.constants import (
+     CURSOR, GET_ITERATOR_CHUNK_SIZE, MULTI, NO_RESULTS, ORDER_DIR, SINGLE,
+@@ -704,15 +705,36 @@ class SQLCompiler:
+         not be) and column name for ordering by the given 'name' parameter.
+         The 'name' is of the form 'field1__field2__...__fieldN'.
+         """
+-        name, order = get_order_dir(name, default_order)
+-        descending = order == 'DESC'
+-        pieces = name.split(LOOKUP_SEP)
++        if isinstance(name, OrderBy):
++            # If name is an OrderBy object, extract expression and descending flag
++            expression = name.expression
++            descending = name.descending
++            # Use the expression's name for relationship traversal if possible
++            # This assumes F() or similar expression with a 'name' attribute
++            if hasattr(expression, 'name'):
++                pieces = expression.name.split(LOOKUP_SEP)
++                # Keep original name string for relation check below (line 716)
++                # If the expression is F('field'), name should be 'field'
++                name_for_relation_check = expression.name
++            else:
++                # Cannot determine relationship path from complex expression name.
++                raise ValueError(
++                    "Cannot use complex expressions (%s) in ordering when "
++                    "following relations." % expression
++                )
++        else:
++            # Existing logic for string-based names
++            name_string, order = get_order_dir(name, default_order)
++            descending = order == 'DESC'
++            pieces = name_string.split(LOOKUP_SEP)
++            # Keep original name string for relation check below (line 716)
++            name_for_relation_check = name_string
+         field, targets, alias, joins, path, opts, transform_function = self._setup_joins(pieces, opts, alias)
+ 
+         # If we get to this point and the field is a relation to another model,
+         # append the default ordering for that model unless the attribute name
+         # of the field is specified.
+-        if field.is_relation and opts.ordering and getattr(field, 'attname', None) != name:
++        if field.is_relation and opts.ordering and getattr(field, 'attname', None) != name_for_relation_check:
+             # Firstly, avoid infinite loops.
+             already_seen = already_seen or set()
+             join_tuple = tuple(getattr(self.query.alias_map[j], 'join_cols', None) for j in joins)
+@@ -723,7 +745,7 @@ class SQLCompiler:
+             results = []
+             for item in opts.ordering:
+                 results.extend(self.find_ordering_name(item, opts, alias,
+-                                                       order, already_seen))
++                                                       default_order, already_seen))
+             return results
+         targets, alias, _ = self.query.trim_joins(targets, joins, path)
+         return [(OrderBy(transform_function(t, alias), descending=descending), False) for t in targets]
+diff --git a/tests/ordering/models.py b/tests/ordering/models.py
+index 8b71983c44..ea919a3cb5 100644
+--- a/tests/ordering/models.py
++++ b/tests/ordering/models.py
+@@ -59,3 +59,14 @@ class Reference(models.Model):
+ 
+     class Meta:
+         ordering = ('article',)
++
++
++class Place(models.Model):
++    name = models.CharField(max_length=50)
++
++    class Meta:
++        ordering = [models.F('name').asc()]
++
++
++class Restaurant(Place):
++    serves_hot_dogs = models.BooleanField(default=False)
+\ No newline at end of file
+diff --git a/tests/ordering/tests.py b/tests/ordering/tests.py
+index 18c32d6d5f..a944c5c0cf 100644
+--- a/tests/ordering/tests.py
++++ b/tests/ordering/tests.py
+@@ -471,3 +471,64 @@ class OrderingTests(TestCase):
+         )
+         with self.assertRaisesMessage(RemovedInDjango31Warning, msg):
+             list(Article.objects.values('author').annotate(Count('headline')))
++
++from .models import Place, Restaurant
++from django.db.models import F
++
++class OrderingInheritanceTests(TestCase):
++    @classmethod
++    def setUpTestData(cls):
++        cls.p1 = Place.objects.create(name='Place 1')
++        cls.r1 = Restaurant.objects.create(name='Restaurant 1', serves_hot_dogs=True)
++
++    def test_order_by_parent_model_with_meta_expression(self):
++        # This call should trigger the bug described in the issue.
++        # It fails because the default ordering uses an F() expression,
++        # and the code handling ordering for inherited models expects strings.
++        qs = Place.objects.order_by('pk')
++        # Force evaluation
++        list(qs)
++        # Add an assertion to make the test meaningful and check results
++        self.assertQuerysetEqual(
++            qs,
++            ['Place 1', 'Restaurant 1'],
++            attrgetter('name'),
++            ordered=False  # Order is by pk, not name
++        )
++        # Check the specific order by pk
++        self.assertEqual(list(qs), [self.p1, self.r1])
++
++    def test_order_by_child_model_with_meta_expression(self):
++        # Check ordering on the child model itself
++        qs = Restaurant.objects.order_by('pk')
++        list(qs) # Force evaluation
++        self.assertQuerysetEqual(
++            qs,
++            ['Restaurant 1'],
++            attrgetter('name')
++        )
++        self.assertEqual(list(qs), [self.r1])
++
++    def test_default_ordering_parent_model_with_meta_expression(self):
++        # Check the default ordering on the parent model
++        qs = Place.objects.all()
++        list(qs) # Force evaluation
++        # Default ordering is by name ASC
++        self.assertQuerysetEqual(
++            qs,
++            ['Place 1', 'Restaurant 1'],
++            attrgetter('name')
++        )
++        self.assertEqual(list(qs), [self.p1, self.r1])
++
++    def test_default_ordering_child_model_with_meta_expression(self):
++        # Check the default ordering on the child model
++        qs = Restaurant.objects.all()
++        list(qs) # Force evaluation
++        # Default ordering is inherited from Place (name ASC)
++        self.assertQuerysetEqual(
++            qs,
++            ['Restaurant 1'],
++            attrgetter('name')
++        )
++        self.assertEqual(list(qs), [self.r1])
+\ No newline at end of file

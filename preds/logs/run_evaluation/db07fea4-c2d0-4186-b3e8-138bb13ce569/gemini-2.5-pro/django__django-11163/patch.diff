@@ -1,0 +1,55 @@
+diff --git a/django/forms/models.py b/django/forms/models.py
+index d157c291ef..5edbbd376f 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -83,7 +83,7 @@ def model_to_dict(instance, fields=None, exclude=None):
+     for f in chain(opts.concrete_fields, opts.private_fields, opts.many_to_many):
+         if not getattr(f, 'editable', False):
+             continue
+-        if fields and f.name not in fields:
++        if fields is not None and f.name not in fields:
+             continue
+         if exclude and f.name in exclude:
+             continue
+diff --git a/tests/forms_tests/tests/tests.py b/tests/forms_tests/tests/tests.py
+index de04e8a3bc..940f1d7cbe 100644
+--- a/tests/forms_tests/tests/tests.py
++++ b/tests/forms_tests/tests/tests.py
+@@ -3,6 +3,7 @@ import datetime
+ from django.core.files.uploadedfile import SimpleUploadedFile
+ from django.db import models
+ from django.forms import CharField, FileField, Form, ModelForm
++from django.forms.models import model_to_dict
+ from django.forms.models import ModelFormMetaclass
+ from django.test import SimpleTestCase, TestCase
+ 
+@@ -372,3 +373,29 @@ class EmptyLabelTestCase(TestCase):
+ <option value="2">Bar</option>
+ </select></p>"""
+         )
++
++
++class ModelToDictEmptyFieldsTests(TestCase):
++    @classmethod
++    def setUpTestData(cls):
++        cls.opt = ChoiceOptionModel.objects.create(name='Test Option')
++
++    def test_empty_fields_returns_empty_dict(self):
++        """
++        model_to_dict() should return an empty dict if fields=[] is passed.
++        """
++        self.assertEqual(model_to_dict(self.opt, fields=[]), {})
++
++    def test_none_fields_returns_all_fields(self):
++        """
++        model_to_dict() should return all editable fields if fields=None.
++        """
++        expected_dict = {'id': self.opt.pk, 'name': 'Test Option'}
++        self.assertEqual(model_to_dict(self.opt, fields=None), expected_dict)
++
++    def test_specific_fields_returns_only_those_fields(self):
++        """
++        model_to_dict() should return only specified fields.
++        """
++        expected_dict = {'name': 'Test Option'}
++        self.assertEqual(model_to_dict(self.opt, fields=['name']), expected_dict)

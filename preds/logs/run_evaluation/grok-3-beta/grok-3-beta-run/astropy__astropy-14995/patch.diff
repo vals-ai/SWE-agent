@@ -1,0 +1,55 @@
+diff --git a/astropy/nddata/mixins/ndarithmetic.py b/astropy/nddata/mixins/ndarithmetic.py
+index 4153dfccb2..56a8678791 100644
+--- a/astropy/nddata/mixins/ndarithmetic.py
++++ b/astropy/nddata/mixins/ndarithmetic.py
+@@ -520,7 +520,7 @@ class NDArithmeticMixin:
+         elif self.mask is None and operand is not None:
+             # Make a copy so there is no reference in the result.
+             return deepcopy(operand.mask)
+-        elif operand is None:
++        elif operand is None or operand.mask is None:
+             return deepcopy(self.mask)
+         else:
+             # Now lets calculate the resulting mask (operation enforces copy)
+diff --git a/reproduce_mask_issue.py b/reproduce_mask_issue.py
+new file mode 100644
+index 0000000000..bdb9fe80da
+--- /dev/null
++++ b/reproduce_mask_issue.py
+@@ -0,0 +1,35 @@
++
++import numpy as np
++from astropy.nddata import NDDataRef
++
++array = np.array([[0, 1, 0], [1, 0, 1], [0, 1, 0]])
++mask = np.array([[0, 1, 64], [8, 0, 1], [2, 1, 0]])
++
++nref_nomask = NDDataRef(array)
++nref_mask = NDDataRef(array, mask=mask)
++
++# multiply no mask by constant (no mask * no mask)
++print('Test 1: multiply no mask by constant')
++print(nref_nomask.multiply(1., handle_mask=np.bitwise_or).mask)  # returns nothing, no mask, OK
++
++# multiply no mask by itself (no mask * no mask)
++print('Test 2: multiply no mask by itself')
++print(nref_nomask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask)  # return nothing, no mask, OK
++
++# multiply mask by constant (mask * no mask)
++print('Test 3: multiply mask by constant')
++try:
++    print(nref_mask.multiply(1., handle_mask=np.bitwise_or).mask)
++except TypeError as e:
++    print('Error:', e)
++
++# multiply mask by itself (mask * mask)
++print('Test 4: multiply mask by itself')
++print(nref_mask.multiply(nref_mask, handle_mask=np.bitwise_or).mask)
++
++# multiply mask by no mask (mask * no mask)
++print('Test 5: multiply mask by no mask')
++try:
++    print(nref_mask.multiply(nref_nomask, handle_mask=np.bitwise_or).mask)
++except TypeError as e:
++    print('Error:', e)
+\ No newline at end of file

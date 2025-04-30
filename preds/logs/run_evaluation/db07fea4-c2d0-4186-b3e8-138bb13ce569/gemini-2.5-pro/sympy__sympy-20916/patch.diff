@@ -1,0 +1,44 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..fbc65ca185
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,27 @@
++
++
++from sympy import symbols, Matrix
++from sympy.core.compatibility import default_sort_key
++from sympy.printing.pretty.pretty import pprint
++
++# Define symbols with Greek letter omega and subscripts
++t0, t1, t2 = symbols('t_0 t_1 t_2')
++omega0 = symbols('omega0') # Using omega_0 as per the 'Bad' example
++
++# Create the matrix expression from the 'Bad' example
++expr_bad = Matrix([[-t0 * omega0, -t1 * omega0, -t2 * omega0]])
++
++print("Bad case (omega_0):")
++pprint(expr_bad, use_unicode=True)
++
++# Define symbols with Latin letter w and subscripts for comparison
++w0 = symbols('w_0') # Using w_0 as per the 'Good' example
++
++# Create the matrix expression from the 'Good' example
++expr_good = Matrix([[-t0 * w0, -t1 * w0, -t2 * w0]])
++
++print("\nGood case (w_0):")
++pprint(expr_good, use_unicode=True)
++
++# Add a success message
++print("\nScript completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/sympy/core/compatibility.py b/sympy/core/compatibility.py
+index 4f3a07dd84..6cdf4a563c 100644
+--- a/sympy/core/compatibility.py
++++ b/sympy/core/compatibility.py
+@@ -1,4 +1,5 @@
+ """
++
+ Reimplementations of constructs introduced in later versions of Python than
+ we support. Also some functions that are needed SymPy-wide and are located
+ here for easy import.

@@ -1,0 +1,13 @@
+diff --git a/tests/messages_tests/test_mixins.py b/tests/messages_tests/test_mixins.py
+index f4d0b26d28..c26b172558 100644
+--- a/tests/messages_tests/test_mixins.py
++++ b/tests/messages_tests/test_mixins.py
+@@ -1,5 +1,7 @@
++from django.contrib.messages.storage import fallback
++from django.contrib import messages
+ from django.core.signing import b64_decode
+-from django.test import TestCase, override_settings
++from django.test import RequestFactory, TestCase, override_settings
+ from django.urls import reverse
+ 
+ from .models import SomeObject

@@ -1,0 +1,63 @@
+diff --git a/django/db/models/fields/files.py b/django/db/models/fields/files.py
+index 7a99b12691..652a1147a4 100644
+--- a/django/db/models/fields/files.py
++++ b/django/db/models/fields/files.py
+@@ -295,8 +295,10 @@ class FileField(Field):
+         if kwargs.get("max_length") == 100:
+             del kwargs["max_length"]
+         kwargs["upload_to"] = self.upload_to
+-        if self.storage is not default_storage:
+-            kwargs["storage"] = getattr(self, "_storage_callable", self.storage)
++        if hasattr(self, "_storage_callable"):
++            kwargs["storage"] = self._storage_callable
++        elif self.storage is not default_storage:
++            kwargs["storage"] = self.storage
+         return name, path, args, kwargs
+ 
+     def get_internal_type(self):
+diff --git a/tests/migrations/test_writer.py b/tests/migrations/test_writer.py
+index 1c11c68e97..c945c2775a 100644
+--- a/tests/migrations/test_writer.py
++++ b/tests/migrations/test_writer.py
+@@ -25,6 +25,7 @@ from django.test import SimpleTestCase
+ from django.utils.deconstruct import deconstructible
+ from django.utils.functional import SimpleLazyObject
+ from django.utils.timezone import get_default_timezone, get_fixed_timezone
++from django.core.files.storage import default_storage
+ from django.utils.translation import gettext_lazy as _
+ 
+ from .models import FoodManager, FoodQuerySet
+@@ -50,6 +51,12 @@ class TestModel1:
+ 
+     thing = models.FileField(upload_to=upload_to)
+ 
++def get_storage():
++    # This function is used in test_serialize_file_field_callable_storage
++    # It intentionally returns default_storage to test the deconstruction
++    # when the callable result is the default.
++    return default_storage
++
+ 
+ class TextEnum(enum.Enum):
+     A = "a-value"
+@@ -201,6 +208,20 @@ class WriterTests(SimpleTestCase):
+     """
+     Tests the migration writer (makes migration files from Migration instances)
+     """
++    def test_serialize_file_field_callable_storage(self):
++        """
++        A FileField with a callable storage that returns default_storage
++        is serialized correctly (#33189).
++        """
++        string, imports = MigrationWriter.serialize(
++            models.FileField(storage=get_storage)
++        )
++        self.assertEqual(
++            string,
++            "models.FileField(storage=migrations.test_writer.get_storage, upload_to='')",
++        )
++        self.assertIn("from django.db import models", imports)
++        self.assertIn("import migrations.test_writer", imports)
+ 
+     class NestedEnum(enum.IntEnum):
+         A = 1

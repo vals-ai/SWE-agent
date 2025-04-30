@@ -1,0 +1,45 @@
+diff --git a/django/utils/autoreload.py b/django/utils/autoreload.py
+index b8efb9f881..ee5d9c50aa 100644
+--- a/django/utils/autoreload.py
++++ b/django/utils/autoreload.py
+@@ -221,9 +221,11 @@ def get_child_arguments():
+     py_script = Path(sys.argv[0])
+ 
+     args = [sys.executable] + ['-W%s' % o for o in sys.warnoptions]
+-    if py_script == django_main_path:
+-        # The server was started with `python -m django runserver`.
+-        args += ['-m', 'django']
++    # Check if the server was started with `python -m`.
++    main_spec = getattr(sys.modules["__main__"], "__spec__", None)
++    parent_pkg = getattr(main_spec, "parent", None)
++    if parent_pkg:
++        args += ["-m", parent_pkg]
+         args += sys.argv[1:]
+     elif not py_script.exists():
+         # sys.argv[0] may not exist for several reasons on Windows.
+diff --git a/tests/utils_tests/test_autoreload.py b/tests/utils_tests/test_autoreload.py
+index b9f2db7276..89a7295708 100644
+--- a/tests/utils_tests/test_autoreload.py
++++ b/tests/utils_tests/test_autoreload.py
+@@ -157,9 +157,10 @@ class TestIterModulesAndFiles(SimpleTestCase):
+ 
+ 
+ class TestChildArguments(SimpleTestCase):
++    @mock.patch('sys.modules.get')
+     @mock.patch('sys.argv', [django.__main__.__file__, 'runserver'])
+     @mock.patch('sys.warnoptions', [])
+-    def test_run_as_module(self):
++    def test_run_as_module(self, mock_warnoptions, mock_argv, mock_sys_modules_get):
+         self.assertEqual(
+             autoreload.get_child_arguments(),
+             [sys.executable, '-m', 'django', 'runserver']
+@@ -446,7 +447,8 @@ class RestartWithReloaderTests(SimpleTestCase):
+         main = '/usr/lib/pythonX.Y/site-packages/django/__main__.py'
+         argv = [main, 'runserver']
+         mock_call = self.patch_autoreload(argv)
+-        with mock.patch('django.__main__.__file__', main):
++        with mock.patch('django.__main__.__file__', main), \
++             mock.patch('sys.modules', {"__main__": mock.Mock(spec=types.ModuleType("__main__"), __spec__=mock.Mock(parent="django"))}):
+             autoreload.restart_with_reloader()
+             self.assertEqual(mock_call.call_count, 1)
+             self.assertEqual(mock_call.call_args[0][0], [self.executable, '-Wall', '-m', 'django'] + argv[1:])

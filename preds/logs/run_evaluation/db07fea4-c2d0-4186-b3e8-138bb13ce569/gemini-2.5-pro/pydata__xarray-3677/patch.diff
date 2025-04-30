@@ -1,0 +1,61 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..7b27b51c
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,11 @@
++
++import xarray as xr
++
++ds = xr.Dataset({'a': 0})
++da = xr.DataArray(1, name='b')
++
++expected = xr.merge([ds, da])  # works fine
++print(expected)
++
++ds.merge(da)  # fails
++print("Script completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index ac0a923d..e7b0962d 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -3606,7 +3606,7 @@ class Dataset(Mapping, ImplementsDatasetReduce, DataWithCoords):
+         _check_inplace(inplace)
+         merge_result = dataset_merge_method(
+             self,
+-            other,
++            other.to_dataset() if isinstance(other, xr.DataArray) else other,
+             overwrite_vars=overwrite_vars,
+             compat=compat,
+             join=join,
+diff --git a/xarray/tests/test_merge.py b/xarray/tests/test_merge.py
+index c1e6c7a5..71af5840 100644
+--- a/xarray/tests/test_merge.py
++++ b/xarray/tests/test_merge.py
+@@ -159,6 +159,25 @@ class TestMergeMethod:
+         with raises_regex(ValueError, "should be coordinates or not"):
+             data.merge(data.reset_coords())
+ 
++    def test_merge_dataarray_method(self):
++        """Test merging a DataArray into a Dataset using the Dataset method."""
++        ds = xr.Dataset({'a': 0})
++        da = xr.DataArray(1, name='b')
++
++        expected = xr.Dataset({'a': 0, 'b': 1})
++        actual = ds.merge(da)
++        assert expected.identical(actual)
++
++        # Test merging a DataArray without a name (should raise ValueError)
++        # DataArray.to_dataset() raises this error
++        da_noname = xr.DataArray(2)
++        with pytest.raises(ValueError, match="unable to convert unnamed DataArray to a Dataset without providing an explicit name"):
++            ds.merge(da_noname)
++
++        # Test that DataArray.merge still doesn't exist
++        with pytest.raises(AttributeError):
++            da.merge(ds)
++
+     def test_merge_broadcast_equals(self):
+         ds1 = xr.Dataset({"x": 0})
+         ds2 = xr.Dataset({"x": ("y", [0, 0])})

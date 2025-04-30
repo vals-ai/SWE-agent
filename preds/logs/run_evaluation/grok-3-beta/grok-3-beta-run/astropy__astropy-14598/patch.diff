@@ -1,0 +1,47 @@
+diff --git a/astropy/io/fits/card.py b/astropy/io/fits/card.py
+index 1b3285ddce..cb4f1537af 100644
+--- a/astropy/io/fits/card.py
++++ b/astropy/io/fits/card.py
+@@ -859,7 +859,7 @@ class Card(_Verify):
+                     return kw, vc
+ 
+                 value = m.group("strg") or ""
+-                value = value.rstrip().replace("''", "'")
++                value = value.rstrip()
+                 if value and value[-1] == "&":
+                     value = value[:-1]
+                 values.append(value)
+@@ -871,7 +871,9 @@ class Card(_Verify):
+                 valuecomment = "".join(values)
+             else:
+                 # CONTINUE card
+-                valuecomment = f"'{''.join(values)}' / {' '.join(comments)}"
++                concatenated_value = ''.join(values)
++                # Do not unescape here, let _parse_value handle it consistently
++                valuecomment = f"'{concatenated_value}' / {' '.join(comments)}"
+             return keyword, valuecomment
+ 
+         if self.keyword in self._special_keywords:
+diff --git a/reproduce_fits_card_bug.py b/reproduce_fits_card_bug.py
+new file mode 100644
+index 0000000000..e30ebc420b
+--- /dev/null
++++ b/reproduce_fits_card_bug.py
+@@ -0,0 +1,16 @@
++
++from astropy.io import fits
++for n in range(60, 70):
++    card1 = fits.Card('CONFIG', "x" * n + "''")
++    card_image = str(card1)
++    if '\n' in card_image:
++        for i, line in enumerate(card_image.split('\n')):
++            print(f'Part {i+1}: {repr(line)}')
++    else:
++        print(f'Single part: {repr(card_image)}')
++    print('Card image:', repr(str(card1)))
++    card2 = fits.Card.fromstring(str(card1))
++    print(n, len(card1.value), card1.value == card2.value)
++    if card1.value != card2.value:
++        print(card1.value)
++        print(card2.value)
+\ No newline at end of file

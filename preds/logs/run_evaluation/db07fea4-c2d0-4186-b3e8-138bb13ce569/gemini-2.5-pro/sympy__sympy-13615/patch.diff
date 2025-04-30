@@ -1,0 +1,18 @@
+diff --git a/sympy/sets/sets.py b/sympy/sets/sets.py
+index 917717bb74..dc0adc7115 100644
+--- a/sympy/sets/sets.py
++++ b/sympy/sets/sets.py
+@@ -999,10 +999,10 @@ def _complement(self, other):
+             return Union(a, b)
+ 
+         if isinstance(other, FiniteSet):
+-            nums = [m for m in other.args if m.is_number]
+-            if nums == []:
+-                return None
++            # Let Complement handle Interval - FiniteSet directly
++            return None
+ 
++        # Fallback for types other than FiniteSet or Interval(Reals)
+         return Set._complement(self, other)
+ 
+ 

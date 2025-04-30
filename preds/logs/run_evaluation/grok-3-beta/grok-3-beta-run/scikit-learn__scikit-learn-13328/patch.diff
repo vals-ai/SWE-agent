@@ -1,0 +1,53 @@
+diff --git a/reproduce_huber_bool.py b/reproduce_huber_bool.py
+new file mode 100644
+index 000000000..e84e8988b
+--- /dev/null
++++ b/reproduce_huber_bool.py
+@@ -0,0 +1,24 @@
++
++import numpy as np
++from sklearn.datasets import make_regression
++from sklearn.linear_model import HuberRegressor
++
++# Random data
++X, y, coef = make_regression(n_samples=200, n_features=2, noise=4.0, coef=True, random_state=0)
++X_bool = X > 0
++X_bool_as_float = np.asarray(X_bool, dtype=float)
++
++# Works
++huber = HuberRegressor().fit(X, y)
++print("Fit with regular X successful.")
++
++# Fails (!)
++try:
++    huber = HuberRegressor().fit(X_bool, y)
++    print("Fit with boolean X successful.")
++except TypeError as e:
++    print("TypeError with boolean X:", str(e))
++
++# Also works
++huber = HuberRegressor().fit(X_bool_as_float, y)
++print("Fit with boolean X converted to float successful.")
+\ No newline at end of file
+diff --git a/sklearn/linear_model/huber.py b/sklearn/linear_model/huber.py
+index 65c686400..020e5c491 100644
+--- a/sklearn/linear_model/huber.py
++++ b/sklearn/linear_model/huber.py
+@@ -90,7 +90,7 @@ def _huber_loss_and_gradient(w, X, y, epsilon, alpha, sample_weight=None):
+         grad = np.zeros(n_features + 1)
+ 
+     # Gradient due to the squared loss.
+-    X_non_outliers = -axis0_safe_slice(X, ~outliers_mask, n_non_outliers)
++    X_non_outliers = axis0_safe_slice(X, ~outliers_mask, n_non_outliers)
+     grad[:n_features] = (
+         2. / sigma * safe_sparse_dot(weighted_non_outliers, X_non_outliers))
+ 
+@@ -252,6 +252,8 @@ class HuberRegressor(LinearModel, RegressorMixin, BaseEstimator):
+         """
+         X, y = check_X_y(
+             X, y, copy=False, accept_sparse=['csr'], y_numeric=True)
++        # Convert X to float to handle boolean inputs
++        X = X.astype(float)
+         if sample_weight is not None:
+             sample_weight = np.array(sample_weight)
+             check_consistent_length(y, sample_weight)

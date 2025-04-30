@@ -1,0 +1,13 @@
+diff --git a/tests/queries/test_q.py b/tests/queries/test_q.py
+index cdf40292b0..3526f4c3c8 100644
+--- a/tests/queries/test_q.py
++++ b/tests/queries/test_q.py
+@@ -11,6 +11,8 @@ from django.db.models import (
+ from django.db.models.expressions import NegatedExpression, RawSQL
+ from django.db.models.functions import Lower
+ from django.db.models.sql.where import NothingNode
++from django.db import connection
++from django.test import skipUnlessDBFeature
+ from django.test import SimpleTestCase, TestCase
+ 
+ from .models import Tag

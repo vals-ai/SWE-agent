@@ -1,0 +1,62 @@
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index c1a76584f0..022ad410e5 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -868,6 +868,8 @@ class ExpressionWrapper(Expression):
+ 
+     def __repr__(self):
+         return "{}({})".format(self.__class__.__name__, self.expression)
++    def get_group_by_cols(self, alias=None):
++        return self.expression.get_group_by_cols(alias)
+ 
+ 
+ class When(Expression):
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..ffc6ae52ce
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,21 @@
++import django
++django.setup()
++
++from django.db.models import ExpressionWrapper, Value, IntegerField, Sum
++
++from tests.model_fields.models import Foo as Model
++
++def execQuery(expr):
++    expr = ExpressionWrapper(expr, output_field=IntegerField())
++    query = Model.objects.annotate(expr_res=expr).values('expr_res', 'a').annotate(sum=Sum('d'))
++    print('Generated SQL:', str(query.query))
++    return query
++
++# Test with a constant expression
++try:
++    result = execQuery(Value(3))
++    print('Query executed successfully:', result)
++except Exception as e:
++    print('Error occurred:', str(e))
++
++print('Script completed successfully, no errors.')
+\ No newline at end of file
+diff --git a/test_settings.py b/test_settings.py
+new file mode 100644
+index 0000000000..6f369ee1d3
+--- /dev/null
++++ b/test_settings.py
+@@ -0,0 +1,14 @@
++
++SECRET_KEY = 'test-secret-key'
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'tests.model_fields',
++]
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
+\ No newline at end of file

@@ -1,0 +1,86 @@
+diff --git a/reproduce_sum_error.py b/reproduce_sum_error.py
+new file mode 100644
+index 00000000..1a9f090e
+--- /dev/null
++++ b/reproduce_sum_error.py
+@@ -0,0 +1,6 @@
++
++import xarray as xr
++
++da = xr.DataArray([[1., 2, 3], [4, 5, 6]])
++result = da.sum(["dim_0", "dim_1"], min_count=1)
++print(result)
+\ No newline at end of file
+diff --git a/test_sum_min_count.py b/test_sum_min_count.py
+new file mode 100644
+index 00000000..10d863f6
+--- /dev/null
++++ b/test_sum_min_count.py
+@@ -0,0 +1,22 @@
++
++import xarray as xr
++import numpy as np
++
++# Test 1: Basic sum over multiple dimensions with min_count
++da1 = xr.DataArray([[1., 2., 3.], [4., 5., 6.]])
++result1 = da1.sum(["dim_0", "dim_1"], min_count=1)
++print("Test 1 - Basic sum:", result1)
++
++# Test 2: Sum with NaN values and min_count less than total elements
++da2 = xr.DataArray([[1., np.nan, 3.], [4., np.nan, 6.]])
++result2 = da2.sum(["dim_0", "dim_1"], min_count=4)
++print("Test 2 - Sum with NaN, min_count=4:", result2)
++
++# Test 3: Sum with NaN values and min_count greater than valid elements
++da3 = xr.DataArray([[1., np.nan, np.nan], [np.nan, np.nan, np.nan]])
++valid_count = da3.notnull().sum(["dim_0", "dim_1"])
++result3 = da3.sum(["dim_0", "dim_1"], min_count=2)
++print("Test 3 - Sum with NaN, min_count=2:", result3)
++print("Test 3 - Valid count:", valid_count)
++
++print("All tests completed.")
+\ No newline at end of file
+diff --git a/xarray/core/nanops.py b/xarray/core/nanops.py
+index 41c8d258..dc5f043a 100644
+--- a/xarray/core/nanops.py
++++ b/xarray/core/nanops.py
+@@ -26,17 +26,28 @@ def _maybe_null_out(result, axis, mask, min_count=1):
+     """
+     xarray version of pandas.core.nanops._maybe_null_out
+     """
+-    if hasattr(axis, "__len__"):  # if tuple or list
+-        raise ValueError(
+-            "min_count is not available for reduction with more than one dimensions."
+-        )
+-
+-    if axis is not None and getattr(result, "ndim", False):
+-        null_mask = (mask.shape[axis] - mask.sum(axis) - min_count) < 0
+-        if null_mask.any():
+-            dtype, fill_value = dtypes.maybe_promote(result.dtype)
+-            result = result.astype(dtype)
+-            result[null_mask] = fill_value
++    # Removed restriction on multiple dimensions to allow min_count with multiple axes
++
++    if axis is not None:
++        if hasattr(axis, "__iter__") and not isinstance(axis, str):
++            total_size = np.prod([mask.shape[ax] for ax in axis])
++            valid_count = mask.sum(axis)
++            null_mask = (total_size - valid_count - min_count) < 0
++            if getattr(result, "ndim", 0) == 0:
++                if null_mask:
++                    dtype, fill_value = dtypes.maybe_promote(result.dtype)
++                    result = fill_value
++            else:
++                if null_mask.any():
++                    dtype, fill_value = dtypes.maybe_promote(result.dtype)
++                    result = result.astype(dtype)
++                    result[null_mask] = fill_value
++        else:
++            null_mask = (mask.shape[axis] - mask.sum(axis) - min_count) < 0
++            if null_mask.any():
++                dtype, fill_value = dtypes.maybe_promote(result.dtype)
++                result = result.astype(dtype)
++                result[null_mask] = fill_value
+ 
+     elif getattr(result, "dtype", None) not in dtypes.NAT_TYPES:
+         null_mask = mask.size - mask.sum()

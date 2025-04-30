@@ -1,0 +1,101 @@
+diff --git a/reproduce_swap_dims.py b/reproduce_swap_dims.py
+new file mode 100644
+index 00000000..12b86956
+--- /dev/null
++++ b/reproduce_swap_dims.py
+@@ -0,0 +1,28 @@
++
++import numpy as np
++import xarray as xr
++
++nz = 11
++ds = xr.Dataset(
++    data_vars={
++        "y": ("z", np.random.rand(nz)),
++        "lev": ("z", np.arange(nz) * 10),
++        # ^ We want this to be a dimension coordinate
++    },
++)
++print(f"ds\n{ds}")
++print(f"\nds, 'lev' -> dim coord\n{ds.swap_dims(z='lev')}")
++
++ds2 = (
++    ds.swap_dims(z="lev")
++    .rename_dims(lev="z")
++    .reset_index("lev")
++    .reset_coords()
++)
++print(f"\nds2\n{ds2}")
++# ^ This Dataset appears same as the original
++
++print(f"\nds2, 'lev' -> dim coord\n{ds2.swap_dims(z='lev')}")
++# ^ Produces a Dataset with dimension coordinate 'lev'
++print(f"\nds2 after .swap_dims() applied\n{ds2}")
++# ^ `ds2['lev']` now has dimension 'lev' although otherwise same
+\ No newline at end of file
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index c775d05c..31c9a2f2 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -3762,32 +3762,45 @@ class Dataset(
+                     f"variable along the old dimension {k!r}"
+                 )
+ 
+-        result_dims = {dims_dict.get(dim, dim) for dim in self.dims}
++        # Create a new dataset to avoid modifying the original
++        new_dims = dict(self.dims)
++        for old_dim, new_dim in dims_dict.items():
++            new_dims[new_dim] = new_dims.pop(old_dim)
+ 
+         coord_names = self._coord_names.copy()
+         coord_names.update({dim for dim in dims_dict.values() if dim in self.variables})
+ 
+-        variables: dict[Hashable, Variable] = {}
+-        indexes: dict[Hashable, Index] = {}
+-        for k, v in self.variables.items():
++        variables: dict[Hashable, Variable] = {k: v.copy(deep=True) for k, v in self.variables.items()}
++        indexes: dict[Hashable, Index] = dict(self._indexes)
++        coords_dict: dict[Hashable, Variable] = {}
++        data_vars_dict: dict[Hashable, Variable] = {}
++        for k, v in variables.items():
+             dims = tuple(dims_dict.get(dim, dim) for dim in v.dims)
+-            if k in result_dims:
+-                var = v.to_index_variable()
+-                var.dims = dims
+-                if k in self._indexes:
+-                    indexes[k] = self._indexes[k]
+-                    variables[k] = var
++            var = v.copy(deep=False)  # Shallow copy to update dims
++            var.dims = dims
++            if k in new_dims:
++                var = var.to_index_variable()
++                if k in indexes:
++                    coords_dict[k] = var
+                 else:
+                     index, index_vars = create_default_index_implicit(var)
+                     indexes.update({name: index for name in index_vars})
+-                    variables.update(index_vars)
++                    coords_dict.update(index_vars)
+                     coord_names.update(index_vars)
++                coords_dict[k] = var
+             else:
+-                var = v.to_base_variable()
+-                var.dims = dims
+-                variables[k] = var
+-
+-        return self._replace_with_new_dims(variables, coord_names, indexes=indexes)
++                var = var.to_base_variable()
++                if k in coord_names and k not in new_dims:
++                    coords_dict[k] = var
++                else:
++                    data_vars_dict[k] = var
++
++        # Construct a new dataset with updated dimensions
++        from .dataset import Dataset
++        new_dataset = Dataset(data_vars_dict, coords=coords_dict)
++        new_dataset._dims = new_dims
++        new_dataset._indexes = indexes
++        return new_dataset
+ 
+     # change type of self and return to T_Dataset once
+     # https://github.com/python/mypy/issues/12846 is resolved

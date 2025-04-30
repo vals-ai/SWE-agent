@@ -1,0 +1,99 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..14f01711
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,32 @@
++
++import xarray as xr
++import numpy as np
++
++#yCoord = ['a', 'b', 'c']  # works without error
++yCoord = ['a', 'c', 'b']  # raises ValueError on combine
++
++ds1 = xr.Dataset(
++    data_vars=dict(
++        data=(['x', 'y'], np.random.rand(3, 3))
++    ),
++    coords=dict(
++        x=[1, 2, 3],
++        y=yCoord
++    )
++)
++
++ds2 = xr.Dataset(
++    data_vars=dict(
++        data=(['x', 'y'], np.random.rand(4, 3))
++    ),
++    coords = dict(
++        x=[4, 5, 6, 7],
++        y=yCoord
++    )
++)
++
++print("Attempting combine_by_coords...")
++ds3 = xr.combine_by_coords((ds1, ds2))
++print("Combine successful!")
++print(ds3)
++print("Script completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/xarray/core/combine.py b/xarray/core/combine.py
+index 37ae903b..facb695e 100644
+--- a/xarray/core/combine.py
++++ b/xarray/core/combine.py
+@@ -501,7 +501,7 @@ def combine_by_coords(datasets, compat='no_conflicts', data_vars='all',
+                                    fill_value=fill_value)
+ 
+         # Check the overall coordinates are monotonically increasing
+-        for dim in concatenated.dims:
++        for dim in concat_dims:
+             if dim in concatenated:
+                 indexes = concatenated.indexes.get(dim)
+                 if not (indexes.is_monotonic_increasing
+diff --git a/xarray/tests/test_combine.py b/xarray/tests/test_combine.py
+index 77e2993b..6e6f01f6 100644
+--- a/xarray/tests/test_combine.py
++++ b/xarray/tests/test_combine.py
+@@ -618,6 +618,42 @@ class TestCombineAuto:
+                                       " along dimension x"):
+             combine_by_coords([ds1, ds0])
+ 
++    def test_combine_by_coords_non_monotonic_identical_coords(self):
++        # Test case for issue #3146
++        # combine_by_coords should not raise an error if identical coordinates
++        # are non-monotonic.
++        yCoord = ['a', 'c', 'b']  # non-monotonic
++
++        ds1 = Dataset(
++            data_vars=dict(
++                data=(['x', 'y'], np.random.rand(3, 3))
++            ),
++            coords=dict(
++                x=[1, 2, 3],
++                y=yCoord
++            )
++        )
++
++        ds2 = Dataset(
++            data_vars=dict(
++                data=(['x', 'y'], np.random.rand(4, 3))
++            ),
++            coords=dict(
++                x=[4, 5, 6, 7],
++                y=yCoord
++            )
++        )
++
++        # This should run without error
++        actual = combine_by_coords((ds1, ds2))
++
++        # Check that the combined coordinate is correct
++        np.testing.assert_array_equal(actual["y"].values, yCoord)
++
++        # Check that the data is combined along x
++        assert actual.dims['x'] == 7
++        assert actual.dims['y'] == 3
++
+ 
+ @pytest.mark.filterwarnings("ignore:In xarray version 0.13 `auto_combine` "
+                             "will be deprecated")

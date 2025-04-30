@@ -1,0 +1,16 @@
+diff --git a/django/db/models/query_utils.py b/django/db/models/query_utils.py
+index c957ffa564..795274996a 100644
+--- a/django/db/models/query_utils.py
++++ b/django/db/models/query_utils.py
+@@ -40,6 +40,11 @@ class Q(tree.Node):
+         super().__init__(children=[*args, *sorted(kwargs.items())], connector=_connector, negated=_negated)
+ 
+     def _combine(self, other, conn):
++        # Avoid circular import
++        from django.db.models.expressions import Expression
++        if isinstance(other, Expression):
++            # Expressions know how to combine with Q, but not the other way around.
++            return other._combine(self, conn, reversed=True)
+         if not isinstance(other, Q):
+             raise TypeError(other)
+ 

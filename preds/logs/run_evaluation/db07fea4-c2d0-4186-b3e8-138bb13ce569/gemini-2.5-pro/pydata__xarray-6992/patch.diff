@@ -1,0 +1,51 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..de249d19
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,8 @@
++
++import xarray as xr
++
++ds = xr.Dataset(coords={"a": ("x", [1, 2, 3]), "b": ("x", ['a', 'b', 'c'])})
++ds = ds.set_index(z=['a', 'b']).reset_index("z", drop=True)
++print(ds)
++
++print("Script completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index 620f32f8..1dfe3235 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -365,7 +365,7 @@ class DataVariables(Mapping[Any, "DataArray"]):
+         )
+ 
+     def __len__(self) -> int:
+-        return len(self._dataset._variables) - len(self._dataset._coord_names)
++        return sum(1 for k in self._dataset._variables if k not in self._dataset._coord_names)
+ 
+     def __contains__(self, key: Hashable) -> bool:
+         return key in self._dataset._variables and key not in self._dataset._coord_names
+diff --git a/xarray/tests/test_dataset.py b/xarray/tests/test_dataset.py
+index fc2806c7..14de1b0e 100644
+--- a/xarray/tests/test_dataset.py
++++ b/xarray/tests/test_dataset.py
+@@ -6663,3 +6663,17 @@ def test_string_keys_typing() -> None:
+     ds = xr.Dataset(dict(x=da))
+     mapping = {"y": da}
+     ds.assign(variables=mapping)
++
++
++def test_data_vars_len_after_reset_index_drop() -> None:
++    """
++    Test that DataVariables.__len__ works correctly after reset_index(drop=True)
++    leaves coordinate names without corresponding variables. See GH6749.
++    """
++    ds = xr.Dataset(coords={"a": ("x", [1, 2, 3]), "b": ("x", ['a', 'b', 'c'])})
++    ds_reset = ds.set_index(z=['a', 'b']).reset_index("z", drop=True)
++    # Accessing data_vars should not raise ValueError: __len__() should return >= 0
++    assert len(ds_reset.data_vars) == 0
++    # Also check the repr, which uses data_vars
++    assert "Data variables:" in repr(ds_reset)
++    assert "*empty*" in repr(ds_reset)
+\ No newline at end of file

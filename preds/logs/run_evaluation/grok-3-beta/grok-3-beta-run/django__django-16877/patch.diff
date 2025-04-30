@@ -1,0 +1,79 @@
+diff --git a/django/template/defaultfilters.py b/django/template/defaultfilters.py
+index 5289ef34a0..7904a65951 100644
+--- a/django/template/defaultfilters.py
++++ b/django/template/defaultfilters.py
+@@ -495,7 +495,16 @@ def safeseq(value):
+     individually, as safe, after converting them to strings. Return a list
+     with the results.
+     """
+-    return [mark_safe(obj) for obj in value]
++
++
++@register.filter(is_safe=False)
++def escapeseq(value):
++    """
++    An "escape" filter for sequences. Escape each element in the sequence,
++    individually, to prevent rendering of HTML content. Return a list
++    with the results.
++    """
++    return [escape(obj) for obj in value]
+ 
+ 
+ @register.filter(is_safe=True)
+diff --git a/docs/ref/templates/builtins.txt b/docs/ref/templates/builtins.txt
+index 3aa20dfc71..8834bf1bfd 100644
+--- a/docs/ref/templates/builtins.txt
++++ b/docs/ref/templates/builtins.txt
+@@ -2375,6 +2375,22 @@ You couldn't use the :tfilter:`safe` filter directly in this case, as it would
+ first convert the variable into a string, rather than working with the
+ individual elements of the sequence.
+ 
++.. templatefilter:: escapeseq
++
++``escapeseq``
++-------------
++
++Applies the :tfilter:`escape` filter to each element of a sequence. Useful in
++conjunction with other filters that operate on sequences, such as
++:tfilter:`join`, especially when autoescaping is off. For example:
++
++.. code-block:: html+django
++
++    {{ some_list|escapeseq|join:", " }}
++
++This ensures that each element in the sequence is escaped, preventing HTML
++content from being rendered as actual HTML.
++
+ .. templatefilter:: slice
+ 
+ ``slice``
+diff --git a/tests/template_tests/filter_tests/test_escapeseq.py b/tests/template_tests/filter_tests/test_escapeseq.py
+new file mode 100644
+index 0000000000..c11904302e
+--- /dev/null
++++ b/tests/template_tests/filter_tests/test_escapeseq.py
+@@ -0,0 +1,23 @@
++
++from django.test import SimpleTestCase
++
++from ..utils import setup
++
++
++class EscapeseqTests(SimpleTestCase):
++    @setup({"escapeseq01": '{{ a|join:", " }} -- {{ a|escapeseq|join:", " }}'})
++    def test_escapeseq01(self):
++        output = self.engine.render_to_string("escapeseq01", {"a": ["&", "<"]})
++        self.assertEqual(output, "&amp;, &lt; -- &amp;, &lt;")
++
++    @setup(
++        {
++            "escapeseq02": (
++                '{% autoescape off %}{{ a|join:", " }} -- {{ a|escapeseq|join:", " }}'
++                "{% endautoescape %}"
++            )
++        }
++    )
++    def test_escapeseq02(self):
++        output = self.engine.render_to_string("escapeseq02", {"a": ["&", "<"]})
++        self.assertEqual(output, "&, < -- &amp;, &lt;")
+\ No newline at end of file

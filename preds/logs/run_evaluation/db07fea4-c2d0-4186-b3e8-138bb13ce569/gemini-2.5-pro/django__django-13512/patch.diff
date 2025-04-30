@@ -1,0 +1,33 @@
+diff --git a/django/forms/fields.py b/django/forms/fields.py
+index 9de2c60b35..8235aaac01 100644
+--- a/django/forms/fields.py
++++ b/django/forms/fields.py
+@@ -1258,7 +1258,7 @@ class JSONField(CharField):
+     def prepare_value(self, value):
+         if isinstance(value, InvalidJSONInput):
+             return value
+-        return json.dumps(value, cls=self.encoder)
++        return json.dumps(value, cls=self.encoder, ensure_ascii=False)
+ 
+     def has_changed(self, initial, data):
+         if super().has_changed(initial, data):
+diff --git a/tests/forms_tests/field_tests/test_jsonfield.py b/tests/forms_tests/field_tests/test_jsonfield.py
+index 915b180d0c..c1bb089895 100644
+--- a/tests/forms_tests/field_tests/test_jsonfield.py
++++ b/tests/forms_tests/field_tests/test_jsonfield.py
+@@ -30,6 +30,15 @@ class JSONFieldTest(SimpleTestCase):
+         self.assertEqual(field.prepare_value(None), 'null')
+         self.assertEqual(field.prepare_value('foo'), '"foo"')
+ 
++    def test_prepare_value_non_ascii(self):
++        field = JSONField()
++        value = {'value': '中国'}
++        prepared_value = field.prepare_value(value)
++        # Check that the output is not ASCII-escaped
++        self.assertEqual(prepared_value, '{"value": "中国"}')
++        # Double-check it decodes correctly
++        self.assertEqual(json.loads(prepared_value), value)
++
+     def test_widget(self):
+         field = JSONField()
+         self.assertIsInstance(field.widget, Textarea)

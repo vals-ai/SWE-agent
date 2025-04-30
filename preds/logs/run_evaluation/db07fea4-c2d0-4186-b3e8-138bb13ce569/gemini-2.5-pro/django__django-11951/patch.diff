@@ -1,0 +1,47 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 794e0faae7..92349cd0c5 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -1209,7 +1209,8 @@ class QuerySet:
+         if ignore_conflicts and not connections[self.db].features.supports_ignore_conflicts:
+             raise NotSupportedError('This database backend does not support ignoring conflicts.')
+         ops = connections[self.db].ops
+-        batch_size = (batch_size or max(ops.bulk_batch_size(fields, objs), 1))
++        max_batch_size = max(ops.bulk_batch_size(fields, objs), 1)
++        batch_size = min(batch_size, max_batch_size) if batch_size else max_batch_size
+         inserted_rows = []
+         bulk_return = connections[self.db].features.can_return_rows_from_bulk_insert
+         for item in [objs[i:i + batch_size] for i in range(0, len(objs), batch_size)]:
+diff --git a/tests/bulk_create/tests.py b/tests/bulk_create/tests.py
+index 47aa7afcdc..3c5047eb01 100644
+--- a/tests/bulk_create/tests.py
++++ b/tests/bulk_create/tests.py
+@@ -1,6 +1,7 @@
++from unittest import mock
+ from operator import attrgetter
+ 
+-from django.db import IntegrityError, NotSupportedError, connection
++from django.db import IntegrityError, NotSupportedError, connection, connections
+ from django.db.models import FileField, Value
+ from django.db.models.functions import Lower
+ from django.test import (
+@@ -214,6 +215,19 @@ class BulkCreateTests(TestCase):
+         with self.assertNumQueries(1):
+             TwoFields.objects.bulk_create(objs, len(objs))
+ 
++    @skipUnlessDBFeature('has_bulk_insert')
++    def test_batch_size_respects_backend_limit(self):
++        objs = [TwoFields(f1=i, f2=i) for i in range(4)]
++        # Mock the backend limit to be smaller than the provided batch_size
++        # connections import was added earlier
++        with mock.patch.object(connections[TwoFields.objects.db].ops, 'bulk_batch_size', return_value=2) as mocked_ops:
++            # Use a batch_size larger than the mocked limit
++            with self.assertNumQueries(2): # Expect 2 queries for 4 objects with a limit of 2
++                TwoFields.objects.bulk_create(objs, batch_size=10)
++            # Check that the mocked method was called
++            self.assertTrue(mocked_ops.called)
++        self.assertEqual(TwoFields.objects.count(), 4)
++
+     @skipUnlessDBFeature('has_bulk_insert')
+     def test_bulk_insert_expressions(self):
+         Restaurant.objects.bulk_create([

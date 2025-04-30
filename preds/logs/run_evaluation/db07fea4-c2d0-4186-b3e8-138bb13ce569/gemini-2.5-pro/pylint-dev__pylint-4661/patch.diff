@@ -1,0 +1,143 @@
+diff --git a/doc/faq.rst b/doc/faq.rst
+index c817855f8..659e53e48 100644
+--- a/doc/faq.rst
++++ b/doc/faq.rst
+@@ -93,10 +93,11 @@ localized using the following rules:
+ 
+ * value of the PYLINTHOME environment variable if set
+ 
+-* ".pylint.d" subdirectory of the user's home directory if it is found
+-	(not always findable on Windows platforms)
++* "$XDG_DATA_HOME/pylint" if the XDG_DATA_HOME environment variable is set
++	
++* "$HOME/.local/share/pylint" otherwise (the XDG default, where $HOME is the user's home directory)
+ 
+-* ".pylint.d" directory in the current directory
++* ".pylint.d" directory in the current directory (as a fallback if the home directory cannot be determined)
+ 
+ 3.3 How do I find the option name (for pylintrc) corresponding to a specific command line option?
+ --------------------------------------------------------------------------------------------------------
+diff --git a/pylint/config/__init__.py b/pylint/config/__init__.py
+index 84774d0e3..a8c27311a 100644
+--- a/pylint/config/__init__.py
++++ b/pylint/config/__init__.py
+@@ -55,15 +55,23 @@ __all__ = [
+     "UnsupportedAction",
+ ]
+ 
+-USER_HOME = os.path.expanduser("~")
++USER_HOME = os.path.expanduser("~") # Keep this for XDG fallback
++
+ if "PYLINTHOME" in os.environ:
+     PYLINT_HOME = os.environ["PYLINTHOME"]
+-    if USER_HOME == "~":
+-        USER_HOME = os.path.dirname(PYLINT_HOME)
+-elif USER_HOME == "~":
+-    PYLINT_HOME = ".pylint.d"
+ else:
+-    PYLINT_HOME = os.path.join(USER_HOME, ".pylint.d")
++    # Follow XDG Base Directory Specification
++    xdg_data_home = os.environ.get("XDG_DATA_HOME")
++    if xdg_data_home and xdg_data_home.strip():
++        # Use $XDG_DATA_HOME/pylint
++        PYLINT_HOME = os.path.join(xdg_data_home, "pylint")
++    elif USER_HOME != "~":
++        # Use $HOME/.local/share/pylint as default XDG path
++        PYLINT_HOME = os.path.join(USER_HOME, ".local", "share", "pylint")
++    else:
++        # Fallback for environments where USER_HOME is not properly set
++        # or XDG_DATA_HOME is not available. Using a relative path.
++        PYLINT_HOME = ".pylint.d"
+ 
+ 
+ def _get_pdata_path(base_name, recurs):
+@@ -110,8 +118,10 @@ ENV_HELP = (
+ The following environment variables are used:
+     * PYLINTHOME
+     Path to the directory where persistent data for the run will be stored. If
+-not found, it defaults to ~/.pylint.d/ or .pylint.d (in the current working
+-directory).
++not found, Pylint follows the XDG Base Directory Specification, defaulting to
++$XDG_DATA_HOME/pylint if XDG_DATA_HOME is set, or ~/.local/share/pylint otherwise.
++If the home directory cannot be determined, it falls back to .pylint.d in the
++current working directory.
+     * PYLINTRC
+     Path to the configuration file. See the documentation for the method used
+ to search for configuration file.
+diff --git a/tests/lint/unittest_lint.py b/tests/lint/unittest_lint.py
+index 004c29281..7bbb8c37c 100644
+--- a/tests/lint/unittest_lint.py
++++ b/tests/lint/unittest_lint.py
+@@ -626,27 +626,59 @@ def pop_pylintrc():
+ 
+ 
+ @pytest.mark.usefixtures("pop_pylintrc")
+-def test_pylint_home():
++def test_pylint_home_xdg(monkeypatch): # Add monkeypatch fixture
++    """Test PYLINT_HOME follows XDG specification."""
+     uhome = os.path.expanduser("~")
+-    if uhome == "~":
+-        expected = ".pylint.d"
++    # Temporarily remove XDG_DATA_HOME if it exists
++    original_xdg_data_home = os.environ.pop("XDG_DATA_HOME", None)
++
++    # Test 1: Default XDG path ($HOME/.local/share/pylint)
++    # Need to reload config as it's determined at import time
++    reload(config)
++    if uhome != "~":
++        expected = os.path.join(uhome, ".local", "share", "pylint")
++        assert config.PYLINT_HOME == expected
+     else:
+-        expected = os.path.join(uhome, ".pylint.d")
++        # Test fallback if home is not found
++        expected = ".pylint.d"
++        assert config.PYLINT_HOME == expected
++
++    # Test 2: XDG_DATA_HOME is set
++    fake_xdg_path = "/fake/xdg/data"
++    monkeypatch.setenv("XDG_DATA_HOME", fake_xdg_path)
++    reload(config) # Reload config to pick up env var
++    expected = os.path.join(fake_xdg_path, "pylint")
+     assert config.PYLINT_HOME == expected
+ 
++    # Restore original XDG_DATA_HOME if it existed
++    if original_xdg_data_home is not None:
++        os.environ["XDG_DATA_HOME"] = original_xdg_data_home
++    else:
++        # Ensure it's removed if it wasn't there originally
++        os.environ.pop("XDG_DATA_HOME", None)
++    # Reload config again to restore state for other tests
++    reload(config)
++
++
++@pytest.mark.usefixtures("pop_pylintrc")
++def test_pylint_home_env_var():
++    """Test PYLINT_HOME respects PYLINTHOME environment variable."""
++    # This part remains mostly the same as the original second half
+     try:
+-        pylintd = join(tempfile.gettempdir(), ".pylint.d")
+-        os.environ["PYLINTHOME"] = pylintd
+-        try:
++        # Use a temporary directory for PYLINTHOME
++        with tempfile.TemporaryDirectory() as temp_pylint_home:
++            # pylintd = join(tempfile.gettempdir(), ".pylint.d") # Old way
++            pylintd = temp_pylint_home # Use the temp dir
++            os.environ["PYLINTHOME"] = pylintd
++            # Need to reload config as it's determined at import time
+             reload(config)
+             assert config.PYLINT_HOME == pylintd
+-        finally:
+-            try:
+-                os.remove(pylintd)
+-            except FileNotFoundError:
+-                pass
++            # No need to manually remove pylintd, TemporaryDirectory handles it
+     finally:
+-        del os.environ["PYLINTHOME"]
++        # Ensure PYLINTHOME is removed
++        os.environ.pop("PYLINTHOME", None)
++        # Reload config again to restore state for other tests
++        reload(config)
+ 
+ 
+ @pytest.mark.usefixtures("pop_pylintrc")

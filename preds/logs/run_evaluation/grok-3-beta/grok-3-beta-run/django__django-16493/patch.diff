@@ -1,0 +1,76 @@
+diff --git a/django/db/models/fields/files.py b/django/db/models/fields/files.py
+index 7a99b12691..8f7e8e90f5 100644
+--- a/django/db/models/fields/files.py
++++ b/django/db/models/fields/files.py
+@@ -295,7 +295,7 @@ class FileField(Field):
+         if kwargs.get("max_length") == 100:
+             del kwargs["max_length"]
+         kwargs["upload_to"] = self.upload_to
+-        if self.storage is not default_storage:
++        if hasattr(self, '_storage_callable') or self.storage is not default_storage:
+             kwargs["storage"] = getattr(self, "_storage_callable", self.storage)
+         return name, path, args, kwargs
+ 
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..b216495340
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,56 @@
++
++import django
++from django.conf import settings
++from django.core.files.storage import FileSystemStorage, default_storage
++from django.db import models
++from django.apps import AppConfig, apps
++import random
++
++# Define a minimal app for the model
++class MyAppConfig(AppConfig):
++    name = 'myapp'
++    verbose_name = 'My App'
++    path = '/testbed/myapp'
++
++# Configure minimal Django settings
++if not settings.configured:
++    settings.configure(
++        INSTALLED_APPS=['django.contrib.contenttypes'],
++        DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}
++    )
++    django.setup()
++    # Manually register the app
++    apps.set_installed_apps(settings.INSTALLED_APPS + [MyAppConfig('myapp', None)])
++
++other_storage = FileSystemStorage(location='/media/other')
++
++def get_storage_default():
++    return default_storage
++
++def get_storage_other():
++    return other_storage
++
++# Test with default storage
++class MyModelDefault(models.Model):
++    my_file = models.FileField(storage=get_storage_default)
++    
++    class Meta:
++        app_label = 'myapp'
++
++# Test with other storage
++class MyModelOther(models.Model):
++    my_file = models.FileField(storage=get_storage_other)
++    
++    class Meta:
++        app_label = 'myapp'
++
++# Check deconstruction of the FileField for both models
++field_default = MyModelDefault._meta.get_field('my_file')
++deconstructed_default = field_default.deconstruct()
++print("Deconstructed field (default storage):", deconstructed_default)
++print("Storage in deconstructed kwargs (default storage):", 'storage' in deconstructed_default[3])
++
++field_other = MyModelOther._meta.get_field('my_file')
++deconstructed_other = field_other.deconstruct()
++print("Deconstructed field (other storage):", deconstructed_other)
++print("Storage in deconstructed kwargs (other storage):", 'storage' in deconstructed_other[3])
+\ No newline at end of file

@@ -1,0 +1,67 @@
+diff --git a/src/_pytest/skipping.py b/src/_pytest/skipping.py
+index 335e10996..428e06848 100644
+--- a/src/_pytest/skipping.py
++++ b/src/_pytest/skipping.py
+@@ -262,6 +262,20 @@ def pytest_runtest_makereport(item: Item, call: CallInfo[None]):
+     outcome = yield
+     rep = outcome.get_result()
+     xfailed = item._store.get(xfailed_key, None)
++    # Re-evaluate xfail marks if the call failed, to catch dynamically added markers
++    if rep.when == "call" and rep.failed:
++        current_xfailed = evaluate_xfail_marks(item)
++        if current_xfailed:
++            # Check if the failure matches the expected exception (if any)
++            raises = current_xfailed.raises
++            if raises is None or isinstance(call.excinfo.value, raises):
++                # This is a valid XFAIL
++                rep.outcome = "skipped"
++                rep.wasxfail = current_xfailed.reason
++                # Store the dynamically evaluated xfail status for teardown report
++                item._store[xfailed_key] = current_xfailed
++            # else: the failure was due to an unexpected exception,
++            # so it remains 'failed' (handled by later logic)
+     # unittest special case, see setting of unexpectedsuccess_key
+     if unexpectedsuccess_key in item._store and rep.when == "call":
+         reason = item._store[unexpectedsuccess_key]
+@@ -276,7 +290,7 @@ def pytest_runtest_makereport(item: Item, call: CallInfo[None]):
+         assert call.excinfo.value.msg is not None
+         rep.wasxfail = "reason: " + call.excinfo.value.msg
+         rep.outcome = "skipped"
+-    elif not rep.skipped and xfailed:
++    elif not rep.skipped and xfailed and not getattr(rep, 'wasxfail', False):
+         if call.excinfo:
+             raises = xfailed.raises
+             if raises is not None and not isinstance(call.excinfo.value, raises):
+diff --git a/test_foo.py b/test_foo.py
+new file mode 100644
+index 000000000..c66c6ec2b
+--- /dev/null
++++ b/test_foo.py
+@@ -0,0 +1,26 @@
++
++import pytest
++
++
++def test_xfail_test(request):
++    mark = pytest.mark.xfail(reason="xfail")
++    request.node.add_marker(mark)
++
++
++@pytest.mark.xfail(reason="static xfail")
++def test_static_xfail():
++    assert 0
++
++
++@pytest.mark.xfail(reason="dynamic xpass", run=True, strict=False)
++def test_dynamic_xpass(request):
++    mark = pytest.mark.xfail(reason="dynamic xpass", run=True, strict=False)
++    request.node.add_marker(mark)
++    assert 1 # This should XPASS
++
++
++@pytest.mark.xfail(reason="dynamic strict xpass", run=True, strict=True)
++def test_dynamic_strict_xpass(request):
++    mark = pytest.mark.xfail(reason="dynamic strict xpass", run=True, strict=True)
++    request.node.add_marker(mark)
++    assert 1 # This should fail because strict=True
+\ No newline at end of file

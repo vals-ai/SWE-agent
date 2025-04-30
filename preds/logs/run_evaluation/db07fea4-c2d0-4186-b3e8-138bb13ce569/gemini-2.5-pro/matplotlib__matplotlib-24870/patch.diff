@@ -1,0 +1,47 @@
+diff --git a/lib/matplotlib/contour.py b/lib/matplotlib/contour.py
+index 144eadeae2..9350a226d6 100644
+--- a/lib/matplotlib/contour.py
++++ b/lib/matplotlib/contour.py
+@@ -1121,17 +1121,33 @@ class ContourSet(cm.ScalarMappable, ContourLabeler):
+         """
+         Determine the contour levels and store in self.levels.
+         """
+-        if self.levels is None:
+-            if len(args) == 0:
+-                levels_arg = 7  # Default, hard-wired.
++        user_provided_levels = self.levels is not None or len(args) > 0
++
++        if not user_provided_levels:
++            # User did not provide levels, determine default
++            z = getattr(getattr(self, "_contour_generator", None), "z", None)
++            # Check the dtype of the input array z
++            if z is not None and np.issubdtype(z.dtype, np.bool_):
++                # Default levels for boolean input
++                self.levels = np.array([0.5])
+             else:
+-                levels_arg = args[0]
+-        else:
+-            levels_arg = self.levels
+-        if isinstance(levels_arg, Integral):
+-            self.levels = self._autolev(levels_arg)
++                # Default auto levels (7 levels)
++                # _autolev calculates and returns the levels array directly
++                self.levels = self._autolev(7)
+         else:
+-            self.levels = np.asarray(levels_arg, np.float64)
++            # User provided levels, process them
++            if self.levels is None: # Levels provided positionally
++                levels_arg = args[0]
++            else: # Levels provided via keyword
++                levels_arg = self.levels
++
++            if isinstance(levels_arg, Integral):
++                # User specified an integer number of levels
++                # _autolev calculates and returns the levels array directly
++                self.levels = self._autolev(levels_arg)
++            else:
++                # User specified the levels array/list directly
++                self.levels = np.asarray(levels_arg, np.float64)
+ 
+         if not self.filled:
+             inside = (self.levels > self.zmin) & (self.levels < self.zmax)

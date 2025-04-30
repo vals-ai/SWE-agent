@@ -1,0 +1,84 @@
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 00000000..f5bf5c7d
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,24 @@
++
++import xarray as xr
++import numpy as np
++
++da = xr.DataArray(np.arange(24), dims=["time"])
++da = da.assign_coords(day=365 * da)
++ds = da.to_dataset(name="T")
++
++print("Original Dataset:")
++print(ds)
++
++result = ds.coarsen(time=12).construct(time=("year", "month"))
++
++print("\nResulting Dataset:")
++print(result)
++
++# Check if 'day' is still a coordinate
++print("\nIs 'day' a coordinate in the result?", 'day' in result.coords)
++
++# Add a success message for clarity
++if 'day' in result.coords:
++    print("\nScript completed successfully, 'day' is a coordinate.")
++else:
++    print("\nScript completed, but 'day' was demoted to a variable.")
+\ No newline at end of file
+diff --git a/xarray/core/rolling.py b/xarray/core/rolling.py
+index c194ec08..4ee4086c 100644
+--- a/xarray/core/rolling.py
++++ b/xarray/core/rolling.py
+@@ -973,7 +973,7 @@ class Coarsen(CoarsenArithmetic, Generic[T_Xarray]):
+             else:
+                 reshaped[key] = var
+ 
+-        should_be_coords = set(window_dim) & set(self.obj.coords)
++        should_be_coords = set(reshaped.variables) & set(self.obj.coords)
+         result = reshaped.set_coords(should_be_coords)
+         if isinstance(self.obj, DataArray):
+             return self.obj._from_temp_dataset(result)
+diff --git a/xarray/tests/test_rolling.py b/xarray/tests/test_rolling.py
+index f1b2ce94..c224ae77 100644
+--- a/xarray/tests/test_rolling.py
++++ b/xarray/tests/test_rolling.py
+@@ -806,3 +806,34 @@ class TestDatasetRollingExp:
+             match="Passing ``keep_attrs`` to ``rolling_exp`` has no effect.",
+         ):
+             ds.rolling_exp(time=10, keep_attrs=True)
++
++
++import xarray as xr
++import numpy as np
++from xarray.testing import assert_identical
++
++def test_coarsen_construct_keeps_non_dim_coords():
++    """Test that coarsen().construct() keeps non-dimension coordinates."""
++    da = xr.DataArray(np.arange(24), dims=["time"])
++    # Assign a coordinate that depends on the dimension being coarsened
++    da = da.assign_coords(day=365 * da)
++    ds = da.to_dataset(name="T")
++
++    # Manually construct the expected result
++    # Reshape the data variable
++    expected_T_data = ds["T"].variable.data.reshape((2, 12))
++    # Reshape the coordinate variable
++    expected_day_data = ds["day"].variable.data.reshape((2, 12))
++    expected = xr.Dataset(
++        {"T": (("year", "month"), expected_T_data)},
++        coords={"day": (("year", "month"), expected_day_data)},
++    )
++
++    # Perform the operation
++    actual = ds.coarsen(time=12).construct(time=("year", "month"))
++
++    # Check that the result is identical to the expected one
++    # and specifically that 'day' is a coordinate
++    assert_identical(actual, expected)
++    assert "day" in actual.coords
++    assert "day" not in actual.data_vars
+\ No newline at end of file

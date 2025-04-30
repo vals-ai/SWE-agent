@@ -1,0 +1,60 @@
+diff --git a/sympy/utilities/lambdify.py b/sympy/utilities/lambdify.py
+index da67263b19..9d2d48a068 100644
+--- a/sympy/utilities/lambdify.py
++++ b/sympy/utilities/lambdify.py
+@@ -956,12 +956,15 @@ def _recursive_to_string(doprint, arg):
+         return doprint(arg)
+     elif iterable(arg):
+         if isinstance(arg, list):
+-            left, right = "[]"
++            return "[%s]" % ', '.join(_recursive_to_string(doprint, e) for e in arg)
+         elif isinstance(arg, tuple):
+-            left, right = "()"
++            if len(arg) == 1:
++                # Need trailing comma for single element tuple
++                return "(%s,)" % _recursive_to_string(doprint, arg[0])
++            else:
++                return "(%s)" % ', '.join(_recursive_to_string(doprint, e) for e in arg)
+         else:
+             raise NotImplementedError("unhandled type: %s, %s" % (type(arg), arg))
+-        return left +', '.join(_recursive_to_string(doprint, e) for e in arg) + right
+     elif isinstance(arg, str):
+         return arg
+     else:
+diff --git a/sympy/utilities/tests/test_lambdify.py b/sympy/utilities/tests/test_lambdify.py
+index 023c2fb55a..db4c1a6ae9 100644
+--- a/sympy/utilities/tests/test_lambdify.py
++++ b/sympy/utilities/tests/test_lambdify.py
+@@ -97,6 +97,32 @@ def test_nested_args():
+     assert f3(10, [[[52]], 31], 44) == [10, 52, 31, 44]
+ 
+ 
++
++def test_lambdify_tuple_output():
++    # Test for issue #23439
++    # Single element tuple
++    f1 = lambdify([], tuple([1]))
++    src1 = inspect.getsource(f1)
++    assert "return (1,)" in src1
++    assert f1() == (1,)
++
++    # Multi element tuple
++    f2 = lambdify([], tuple([1, 2]))
++    src2 = inspect.getsource(f2)
++    assert "return (1, 2)" in src2
++    assert f2() == (1, 2)
++
++    # Single element tuple with variable
++    f3 = lambdify(x, tuple([x]))
++    src3 = inspect.getsource(f3)
++    assert "return (x,)" in src3
++    assert f3(5) == (5,)
++
++    # Multi element tuple with variable
++    f4 = lambdify([x, y], tuple([x, y]))
++    src4 = inspect.getsource(f4)
++    assert "return (x, y)" in src4
++    assert f4(6, 7) == (6, 7)
+ def test_str_args():
+     f = lambdify('x,y,z', 'z,y,x')
+     assert f(3, 2, 1) == (1, 2, 3)

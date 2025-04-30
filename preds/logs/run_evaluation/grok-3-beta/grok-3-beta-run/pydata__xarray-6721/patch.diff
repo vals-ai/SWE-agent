@@ -1,0 +1,40 @@
+diff --git a/reproduce_chunks_issue.py b/reproduce_chunks_issue.py
+new file mode 100644
+index 00000000..fc036520
+--- /dev/null
++++ b/reproduce_chunks_issue.py
+@@ -0,0 +1,8 @@
++
++import xarray as xr
++
++url = "https://ncsa.osn.xsede.org/Pangeo/pangeo-forge/swot_adac/FESOM/surf/fma.zarr"
++ds = xr.open_dataset(url, engine='zarr')
++print("Dataset opened, checking chunks...")
++print(ds.chunks)
++print("Script completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index 71646f50..bfb1614b 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -2135,7 +2135,19 @@ class Dataset(
+         Dataset.chunksizes
+         xarray.unify_chunks
+         """
+-        return get_chunksizes(self.variables.values())
++        # Avoid loading data into memory by not accessing .data or .values
++        chunks = {}
++        for dim in self.dims:
++            # Initialize chunks for each dimension if available in encoding or metadata
++            for var in self.variables.values():
++                if hasattr(var, 'encoding') and 'chunks' in var.encoding:
++                    if dim in var.dims:
++                        dim_idx = var.dims.index(dim)
++                        if dim not in chunks:
++                            chunks[dim] = var.encoding['chunks'][dim_idx]
++                        elif chunks[dim] != var.encoding['chunks'][dim_idx]:
++                            raise ValueError(f'Inconsistent chunks for dimension {dim}')
++        return chunks
+ 
+     @property
+     def chunksizes(self) -> Mapping[Hashable, tuple[int, ...]]:

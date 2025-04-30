@@ -1,0 +1,54 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 88c9ca9f28..fcea1597ef 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -542,11 +542,7 @@ class Field(RegisterLookupMixin):
+         return NotImplemented
+ 
+     def __hash__(self):
+-        return hash((
+-            self.creation_counter,
+-            self.model._meta.app_label if hasattr(self, 'model') else None,
+-            self.model._meta.model_name if hasattr(self, 'model') else None,
+-        ))
++        return hash(self.creation_counter)
+ 
+     def __deepcopy__(self, memodict):
+         # We don't have to deepcopy very much here, since most things are not
+diff --git a/tests/model_fields/tests.py b/tests/model_fields/tests.py
+index 5208b40dc9..89007088a3 100644
+--- a/tests/model_fields/tests.py
++++ b/tests/model_fields/tests.py
+@@ -128,9 +128,9 @@ class BasicFieldTests(SimpleTestCase):
+         self.assertLess(abstract_model_field, inherit2_model_field)
+         self.assertLess(inherit1_model_field, inherit2_model_field)
+ 
+-        self.assertNotEqual(hash(abstract_model_field), hash(inherit1_model_field))
+-        self.assertNotEqual(hash(abstract_model_field), hash(inherit2_model_field))
+-        self.assertNotEqual(hash(inherit1_model_field), hash(inherit2_model_field))
++        self.assertEqual(hash(abstract_model_field), hash(inherit1_model_field))
++        self.assertEqual(hash(abstract_model_field), hash(inherit2_model_field))
++        self.assertEqual(hash(inherit1_model_field), hash(inherit2_model_field))
+ 
+ 
+ class ChoicesTests(SimpleTestCase):
+@@ -353,3 +353,18 @@ class GetChoicesLimitChoicesToTests(TestCase):
+             field.get_choices(include_blank=False, limit_choices_to={}),
+             [self.bar1, self.bar2],
+         )
++
++
++class FieldHashingTests(SimpleTestCase):
++    def test_field_hash_immutable(self):
++        """Test that Field.__hash__() is immutable."""
++        f = models.CharField(max_length=200)
++        d = {f: 1}
++
++        class TestModel(models.Model):
++            title = f
++            class Meta:
++                app_label = 'model_fields'
++
++        self.assertIn(f, d)
++        self.assertEqual(d[f], 1)
+\ No newline at end of file

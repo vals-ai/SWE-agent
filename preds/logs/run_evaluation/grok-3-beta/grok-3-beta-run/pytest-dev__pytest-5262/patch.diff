@@ -1,0 +1,27 @@
+diff --git a/src/_pytest/capture.py b/src/_pytest/capture.py
+index 25eab7fdf..72080fc3e 100644
+--- a/src/_pytest/capture.py
++++ b/src/_pytest/capture.py
+@@ -450,6 +450,11 @@ class EncodedFile(object):
+     def __getattr__(self, name):
+         return getattr(object.__getattribute__(self, "buffer"), name)
+ 
++    @property
++    def mode(self):
++        """Ensure that mode does not advertise binary mode."""
++        return self.buffer.mode.replace('b', '')
++
+ 
+ CaptureResult = collections.namedtuple("CaptureResult", ["out", "err"])
+ 
+diff --git a/test.py b/test.py
+new file mode 100644
+index 000000000..dcc636bf2
+--- /dev/null
++++ b/test.py
+@@ -0,0 +1,4 @@
++
++import youtube_dl
++def test_foo():
++    youtube_dl.YoutubeDL().extract_info('http://example.com/')
+\ No newline at end of file

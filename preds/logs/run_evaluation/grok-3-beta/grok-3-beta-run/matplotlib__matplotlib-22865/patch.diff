@@ -1,0 +1,115 @@
+diff --git a/horizontal_both.png b/horizontal_both.png
+new file mode 100644
+index 0000000000..4b238d8a05
+Binary files /dev/null and b/horizontal_both.png differ
+diff --git a/horizontal_max.png b/horizontal_max.png
+new file mode 100644
+index 0000000000..ce0dddce77
+Binary files /dev/null and b/horizontal_max.png differ
+diff --git a/horizontal_min.png b/horizontal_min.png
+new file mode 100644
+index 0000000000..377fb59ca8
+Binary files /dev/null and b/horizontal_min.png differ
+diff --git a/lib/matplotlib/colorbar.py b/lib/matplotlib/colorbar.py
+index c59b0ac815..be542bf76d 100644
+--- a/lib/matplotlib/colorbar.py
++++ b/lib/matplotlib/colorbar.py
+@@ -652,7 +652,7 @@ class Colorbar:
+                 if len(self._y) >= self.n_rasterize:
+                     self.solids.set_rasterized(True)
+         self.dividers.set_segments(
+-            np.dstack([X, Y])[1:-1] if self.drawedges else [])
++            np.dstack([X, Y]) if (self.drawedges and (self._extend_lower() or self._extend_upper())) else (np.dstack([X, Y])[1:-1] if self.drawedges else []))
+ 
+     def _add_solids_patches(self, X, Y, C, mappable):
+         hatches = mappable.hatches * len(C)  # Have enough hatches.
+diff --git a/reproduce_colorbar_bug.py b/reproduce_colorbar_bug.py
+new file mode 100644
+index 0000000000..8ad52d3fe8
+--- /dev/null
++++ b/reproduce_colorbar_bug.py
+@@ -0,0 +1,17 @@
++
++import matplotlib as mpl
++import numpy as np
++import matplotlib.pyplot as plt
++from matplotlib.colors import from_levels_and_colors
++
++my_cmap = mpl.cm.viridis
++bounds = np.arange(10)
++nb_colors = len(bounds) + 1
++colors = my_cmap(np.linspace(100, 255, nb_colors).astype(int))
++my_cmap, my_norm = from_levels_and_colors(bounds, colors, extend='both')
++
++plt.figure(figsize=(5, 1))
++ax = plt.subplot(111)
++cbar = mpl.colorbar.ColorbarBase(ax, cmap=my_cmap, norm=my_norm, orientation='horizontal', drawedges=True)
++plt.subplots_adjust(left=0.05, bottom=0.4, right=0.95, top=0.9)
++plt.show()
+\ No newline at end of file
+diff --git a/test_colorbar_edges.py b/test_colorbar_edges.py
+new file mode 100644
+index 0000000000..b7bdd5a749
+--- /dev/null
++++ b/test_colorbar_edges.py
+@@ -0,0 +1,55 @@
++
++import matplotlib as mpl
++import numpy as np
++import matplotlib.pyplot as plt
++from matplotlib.colors import from_levels_and_colors
++
++# Test 1: Horizontal colorbar with extend='both'
++my_cmap = mpl.cm.viridis
++bounds = np.arange(10)
++nb_colors = len(bounds) + 1
++colors = my_cmap(np.linspace(100, 255, nb_colors).astype(int))
++my_cmap, my_norm = from_levels_and_colors(bounds, colors, extend='both')
++
++plt.figure(figsize=(5, 1))
++ax = plt.subplot(111)
++cbar = mpl.colorbar.ColorbarBase(ax, cmap=my_cmap, norm=my_norm, orientation='horizontal', drawedges=True)
++plt.subplots_adjust(left=0.05, bottom=0.4, right=0.95, top=0.9)
++plt.title('Horizontal, extend=both')
++plt.savefig('horizontal_both.png')
++plt.close()
++
++# Test 2: Vertical colorbar with extend='both'
++plt.figure(figsize=(1, 5))
++ax = plt.subplot(111)
++cbar = mpl.colorbar.ColorbarBase(ax, cmap=my_cmap, norm=my_norm, orientation='vertical', drawedges=True)
++plt.subplots_adjust(left=0.4, bottom=0.05, right=0.9, top=0.95)
++plt.title('Vertical, extend=both')
++plt.savefig('vertical_both.png')
++plt.close()
++
++# Test 3: Horizontal colorbar with extend='min'
++nb_colors_min = len(bounds)
++colors_min = my_cmap(np.linspace(100, 255, nb_colors_min).astype(int))
++my_cmap, my_norm = from_levels_and_colors(bounds, colors_min, extend='min')
++plt.figure(figsize=(5, 1))
++ax = plt.subplot(111)
++cbar = mpl.colorbar.ColorbarBase(ax, cmap=my_cmap, norm=my_norm, orientation='horizontal', drawedges=True)
++plt.subplots_adjust(left=0.05, bottom=0.4, right=0.95, top=0.9)
++plt.title('Horizontal, extend=min')
++plt.savefig('horizontal_min.png')
++plt.close()
++
++# Test 4: Horizontal colorbar with extend='max'
++nb_colors_max = len(bounds)
++colors_max = my_cmap(np.linspace(100, 255, nb_colors_max).astype(int))
++my_cmap, my_norm = from_levels_and_colors(bounds, colors_max, extend='max')
++plt.figure(figsize=(5, 1))
++ax = plt.subplot(111)
++cbar = mpl.colorbar.ColorbarBase(ax, cmap=my_cmap, norm=my_norm, orientation='horizontal', drawedges=True)
++plt.subplots_adjust(left=0.05, bottom=0.4, right=0.95, top=0.9)
++plt.title('Horizontal, extend=max')
++plt.savefig('horizontal_max.png')
++plt.close()
++
++print('All test images saved successfully.')
+\ No newline at end of file
+diff --git a/vertical_both.png b/vertical_both.png
+new file mode 100644
+index 0000000000..305e36012e
+Binary files /dev/null and b/vertical_both.png differ

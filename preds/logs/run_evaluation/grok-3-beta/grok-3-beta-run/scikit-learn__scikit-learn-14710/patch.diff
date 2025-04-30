@@ -1,0 +1,78 @@
+diff --git a/additional_test.py b/additional_test.py
+new file mode 100644
+index 000000000..9380db28f
+--- /dev/null
++++ b/additional_test.py
+@@ -0,0 +1,27 @@
++
++import numpy as np
++from sklearn.experimental import enable_hist_gradient_boosting
++from sklearn.ensemble import HistGradientBoostingClassifier
++
++# Test 1: Original case with two string classes
++X1 = np.random.randn(100, 10)
++y1 = np.array(['x'] * 50 + ['y'] * 50, dtype=object)
++gbrt1 = HistGradientBoostingClassifier(n_iter_no_change=10)
++gbrt1.fit(X1, y1)
++print('Test 1 passed: Two string classes')
++
++# Test 2: Single class (edge case)
++X2 = np.random.randn(50, 10)
++y2 = np.array(['a'] * 50, dtype=object)
++gbrt2 = HistGradientBoostingClassifier(n_iter_no_change=10)
++gbrt2.fit(X2, y2)
++print('Test 2 passed: Single string class')
++
++# Test 3: Three string classes
++X3 = np.random.randn(150, 10)
++y3 = np.array(['a'] * 50 + ['b'] * 50 + ['c'] * 50, dtype=object)
++gbrt3 = HistGradientBoostingClassifier(n_iter_no_change=10)
++gbrt3.fit(X3, y3)
++print('Test 3 passed: Three string classes')
++
++print('All tests completed successfully, no errors.')
+\ No newline at end of file
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 000000000..686eaa455
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,9 @@
++
++import numpy as np
++from sklearn.experimental import enable_hist_gradient_boosting
++from sklearn.ensemble import HistGradientBoostingClassifier
++
++X = np.random.randn(100, 10)
++y = np.array(['x'] * 50 + ['y'] * 50, dtype=object)
++gbrt = HistGradientBoostingClassifier(n_iter_no_change=10)
++gbrt.fit(X, y)
+\ No newline at end of file
+diff --git a/sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py b/sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py
+index ad6a5a8ca..958ed8e97 100644
+--- a/sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py
++++ b/sklearn/ensemble/_hist_gradient_boosting/gradient_boosting.py
+@@ -426,13 +426,21 @@ class BaseHistGradientBoosting(BaseEstimator, ABC):
+ 
+         Scores are computed on validation data or on training data.
+         """
++        if hasattr(self, 'classes_'):
++            y_small_train_transformed = self.classes_[y_small_train.astype(int)]
++        else:
++            y_small_train_transformed = y_small_train
+         self.train_score_.append(
+-            self.scorer_(self, X_binned_small_train, y_small_train)
++            self.scorer_(self, X_binned_small_train, y_small_train_transformed)
+         )
+ 
+         if self._use_validation_data:
++            if hasattr(self, 'classes_'):
++                y_val_transformed = self.classes_[y_val.astype(int)]
++            else:
++                y_val_transformed = y_val
+             self.validation_score_.append(
+-                self.scorer_(self, X_binned_val, y_val)
++                self.scorer_(self, X_binned_val, y_val_transformed)
+             )
+             return self._should_stop(self.validation_score_)
+         else:

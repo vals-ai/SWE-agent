@@ -1,0 +1,33 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..ff08ff88b6
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,13 @@
++
++\
++import numpy as np
++from sympy import Matrix, hermite_normal_form
++
++# The problematic code from the issue
++result = np.flip(hermite_normal_form(Matrix(np.flip(np.array([[5, 8, 12], [0, 0, 1]]))).T).T)
++
++# Print the result
++print(result)
++
++# Add a success message for clarity
++print("Script completed.")
+\ No newline at end of file
+diff --git a/sympy/polys/matrices/normalforms.py b/sympy/polys/matrices/normalforms.py
+index 30f5534b08..5138e639a4 100644
+--- a/sympy/polys/matrices/normalforms.py
++++ b/sympy/polys/matrices/normalforms.py
+@@ -235,7 +235,7 @@ def _hermite_normal_form(A):
+         # way to the left. In this case, we are still working on the same pivot
+         # col for the next row. Therefore:
+         if b == 0:
+-            k += 1
++            pass
+         # If the pivot entry is nonzero, then we want to reduce all entries to its
+         # right in the sense of the division algorithm, i.e. make them all remainders
+         # w.r.t. the pivot as divisor.

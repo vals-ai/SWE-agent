@@ -1,0 +1,40 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..16e5c029
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,15 @@
++
++import seaborn as sns
++import seaborn.objects as so
++
++penguins = sns.load_dataset("penguins")
++penguins["body_mass_mg"] = penguins["body_mass_g"]*1000
++(
++    so.Plot(
++        penguins, x="bill_length_mm", y="bill_depth_mm",
++        color="species", pointsize="body_mass_mg",
++    )
++    .add(so.Dot())
++)
++
++print("Script completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/seaborn/_core/scales.py b/seaborn/_core/scales.py
+index 55874bf2..5f83a116 100644
+--- a/seaborn/_core/scales.py
++++ b/seaborn/_core/scales.py
+@@ -379,6 +379,13 @@ class ContinuousBase(Scale):
+             locs = axis.major.locator()
+             locs = locs[(vmin <= locs) & (locs <= vmax)]
+             labels = axis.major.formatter.format_ticks(locs)
++            # Check if formatter uses offset (like ScalarFormatter)
++            offset_text = ''
++            if hasattr(axis.major.formatter, 'get_offset'):
++                offset_text = axis.major.formatter.get_offset()
++                if offset_text:
++                    offset_text = f' {offset_text}'
++            labels = [label + offset_text for label in labels]
+             new._legend = list(locs), list(labels)
+ 
+         return new

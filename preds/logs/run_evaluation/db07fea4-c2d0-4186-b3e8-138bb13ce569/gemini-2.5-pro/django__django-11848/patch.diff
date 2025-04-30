@@ -1,0 +1,60 @@
+diff --git a/django/utils/http.py b/django/utils/http.py
+index 572cfb4347..22568d5474 100644
+--- a/django/utils/http.py
++++ b/django/utils/http.py
+@@ -176,10 +176,14 @@ def parse_http_date(date):
+     try:
+         year = int(m.group('year'))
+         if year < 100:
+-            if year < 70:
+-                year += 2000
++            current_year = datetime.datetime.utcnow().year
++            # Assume year is in the current century.
++            potential_year = (current_year // 100 * 100) + year
++            # If it's more than 50 years in the future, assume it's in the past century.
++            if potential_year > current_year + 50:
++                year = potential_year - 100
+             else:
+-                year += 1900
++                year = potential_year
+         month = MONTHS.index(m.group('mon').lower()) + 1
+         day = int(m.group('day'))
+         hour = int(m.group('hour'))
+diff --git a/tests/utils_tests/test_http.py b/tests/utils_tests/test_http.py
+index bc8bcfe977..f394a370e1 100644
+--- a/tests/utils_tests/test_http.py
++++ b/tests/utils_tests/test_http.py
+@@ -328,6 +328,33 @@ class HttpDateProcessingTests(unittest.TestCase):
+         parsed = parse_http_date('Sun Nov  6 08:49:37 0037')
+         self.assertEqual(datetime.utcfromtimestamp(parsed), datetime(2037, 11, 6, 8, 49, 37))
+ 
++    def test_parsing_rfc850_year_rollover(self):
++        # RFC 7231 § 7.1.1.1 requires recipients to interpret 2-digit years
++        # that appear to be more than 50 years in the future as representing
++        # the most recent year in the past that had the same last two digits.
++        now = datetime.utcnow()
++        current_year_2_digit = now.year % 100
++        # Test year slightly less than 50 years in the future: should be current century
++        future_year_2_digit = (current_year_2_digit + 49) % 100
++        future_year_4_digit = (now.year // 100 * 100) + future_year_2_digit
++        date_str = f'Sunday, 06-Nov-{future_year_2_digit:02d} 08:49:37 GMT'
++        parsed = parse_http_date(date_str)
++        self.assertEqual(datetime.utcfromtimestamp(parsed), datetime(future_year_4_digit, 11, 6, 8, 49, 37))
++
++        # Test year more than 50 years in the future: should be previous century
++        past_year_2_digit = (current_year_2_digit + 51) % 100
++        past_year_4_digit = (now.year // 100 * 100) + past_year_2_digit - 100
++        date_str = f'Sunday, 06-Nov-{past_year_2_digit:02d} 08:49:37 GMT'
++        parsed = parse_http_date(date_str)
++        self.assertEqual(datetime.utcfromtimestamp(parsed), datetime(past_year_4_digit, 11, 6, 8, 49, 37))
++
++        # Test year exactly 50 years in the future: should be current century
++        future_year_2_digit_50 = (current_year_2_digit + 50) % 100
++        future_year_4_digit_50 = (now.year // 100 * 100) + future_year_2_digit_50
++        date_str = f'Sunday, 06-Nov-{future_year_2_digit_50:02d} 08:49:37 GMT'
++        parsed = parse_http_date(date_str)
++        self.assertEqual(datetime.utcfromtimestamp(parsed), datetime(future_year_4_digit_50, 11, 6, 8, 49, 37))
++
+ 
+ class EscapeLeadingSlashesTests(unittest.TestCase):
+     def test(self):

@@ -1,0 +1,42 @@
+diff --git a/django/db/models/fields/json.py b/django/db/models/fields/json.py
+index fdca700c9d..ce22200e1b 100644
+--- a/django/db/models/fields/json.py
++++ b/django/db/models/fields/json.py
+@@ -237,6 +237,9 @@ class HasKey(HasKeyLookup):
+     postgres_operator = "?"
+     prepare_rhs = False
+ 
++    def get_prep_lookup(self):
++        return str(self.rhs)
++
+ 
+ class HasKeys(HasKeyLookup):
+     lookup_name = "has_keys"
+diff --git a/test_jsonfield.py b/test_jsonfield.py
+new file mode 100644
+index 0000000000..b0a2be00bb
+--- /dev/null
++++ b/test_jsonfield.py
+@@ -0,0 +1,21 @@
++
++from django.test import TestCase
++from django.db import models
++
++# Define the model for testing
++class JsonFieldHasKeyTest(models.Model):
++    data = models.JSONField()
++
++class JsonFieldHasKeyTestCase(TestCase):
++    def setUp(self) -> None:
++        test = JsonFieldHasKeyTest(data={'foo': 'bar'})
++        test2 = JsonFieldHasKeyTest(data={'1111': 'bar'})
++        test.save()
++        test2.save()
++
++    def test_json_field_has_key(self):
++        c1 = JsonFieldHasKeyTest.objects.filter(data__has_key='foo').count()
++        c2 = JsonFieldHasKeyTest.objects.filter(data__has_key='1111').count()
++        self.assertEqual(c1, 1, "Should have found 1 entry with key 'foo'")
++        self.assertEqual(c2, 1, "Should have found 1 entry with key '1111'")
++        print("Test completed.")
+\ No newline at end of file

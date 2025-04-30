@@ -1,0 +1,43 @@
+diff --git a/django/forms/widgets.py b/django/forms/widgets.py
+index 6fe220bea7..ae9711119a 100644
+--- a/django/forms/widgets.py
++++ b/django/forms/widgets.py
+@@ -524,6 +524,8 @@ class CheckboxInput(Input):
+         if self.check_test(value):
+             if attrs is None:
+                 attrs = {}
++            else:
++                attrs = attrs.copy()  # Prevent modifying the original dict
+             attrs['checked'] = True
+         return super().get_context(name, value, attrs)
+ 
+diff --git a/test_split_array_field.py b/test_split_array_field.py
+new file mode 100644
+index 0000000000..8679ba7b57
+--- /dev/null
++++ b/test_split_array_field.py
+@@ -0,0 +1,23 @@
++
++from django import forms
++from django.forms import BooleanField, CheckboxInput
++
++# Simulate getting context for multiple checkboxes with different values
++values = [False, True, False]
++checked_statuses = []
++attrs = {}
++for i, value in enumerate(values):
++    widget = CheckboxInput()
++    context = widget.get_context(name=f'checkbox_{i}', value=value, attrs=attrs)
++    widget_attrs = context['widget']['attrs']
++    is_checked = widget_attrs.get('checked', False)
++    checked_statuses.append(is_checked)
++    print(f'Checkbox {i} (value={value}): checked={is_checked}')
++
++# Check if 'checked' is set correctly based on values
++checked_count = sum(1 for status in checked_statuses if status)
++print(f'Number of checked checkboxes: {checked_count}')
++if checked_count == 1:
++    print('Test Passed: Only one checkbox is checked as expected.')
++else:
++    print('Test Failed: Incorrect number of checkboxes are checked.')
+\ No newline at end of file

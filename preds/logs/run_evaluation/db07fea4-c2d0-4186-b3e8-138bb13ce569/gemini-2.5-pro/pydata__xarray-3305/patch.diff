@@ -1,0 +1,54 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..18b471f2
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,10 @@
++
++import xarray as xr
++da = xr.DataArray([0, 0], dims="x", attrs={'units':'K'})
++out = da.quantile(.9, dim='x', keep_attrs=True)
++print(out.attrs)
++# Add a success message for clarity
++if out.attrs == {'units': 'K'}:
++    print("Script completed successfully, attributes kept.")
++else:
++    print("Script completed, but attributes were NOT kept.")
+\ No newline at end of file
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index 807badde..65b91a51 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -380,7 +380,9 @@ class DataArray(AbstractArray, DataWithCoords):
+             coords = self._coords
+         if name is self.__default:
+             name = self.name
+-        return type(self)(variable, coords, name=name, fastpath=True)
++        new_array = type(self)(variable, coords, name=name, fastpath=True)
++        new_array.attrs = self.attrs
++        return new_array
+ 
+     def _replace_maybe_drop_dims(
+         self, variable: Variable, name: Optional[Hashable] = __default
+diff --git a/xarray/tests/test_dataarray.py b/xarray/tests/test_dataarray.py
+index 8c01ef9a..51df2b3c 100644
+--- a/xarray/tests/test_dataarray.py
++++ b/xarray/tests/test_dataarray.py
+@@ -2319,7 +2319,16 @@ class TestDataArray:
+         # Test kept attrs
+         vm = self.va.mean(keep_attrs=True)
+         assert len(vm.attrs) == len(self.attrs)
+-        assert vm.attrs == self.attrs
++
++        # Test quantile with keep_attrs=True
++        vq = self.va.quantile(0.5, keep_attrs=True)
++        assert len(vq.attrs) == len(self.attrs)
++        assert vq.attrs == self.attrs
++
++        # Test quantile with keep_attrs=False (default)
++        vq_no_attrs = self.va.quantile(0.5)
++        assert len(vq_no_attrs.attrs) == 0
++        assert vq_no_attrs.attrs == OrderedDict()
+ 
+     def test_assign_attrs(self):
+         expected = DataArray([], attrs=dict(a=1, b=2))

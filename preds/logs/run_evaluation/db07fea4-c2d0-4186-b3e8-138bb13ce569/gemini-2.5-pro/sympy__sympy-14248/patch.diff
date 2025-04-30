@@ -1,0 +1,219 @@
+diff --git a/sympy/printing/latex.py b/sympy/printing/latex.py
+index 8253b2f682..4d51925c23 100644
+--- a/sympy/printing/latex.py
++++ b/sympy/printing/latex.py
+@@ -1477,9 +1477,60 @@ def _print_Adjoint(self, expr):
+             return r"%s^\dagger" % self._print(mat)
+ 
+     def _print_MatAdd(self, expr):
+-        terms = list(expr.args)
+-        tex = " + ".join(map(self._print, terms))
+-        return tex
++        # Need access to MatMul, S, precedence
++        from sympy.matrices.expressions import MatMul
++        from sympy.core import S
++        from sympy.printing.precedence import precedence, PRECEDENCE
++
++        terms = expr.args
++        PREC = PRECEDENCE['Add'] # Use standard Add precedence for parenthesizing terms
++        tex_parts = []
++
++        for i, term in enumerate(terms):
++            # Check if term is MatMul like (-1)*B or (-1)*A*B
++            is_negative = isinstance(term, MatMul) and term.args and term.args[0] == S.NegativeOne
++
++            if is_negative:
++                # Extract the positive part to print
++                if len(term.args) == 2: # (-1, Factor)
++                    term_to_print = term.args[1]
++                elif len(term.args) > 2: # (-1, Factor1, ...)
++                    term_to_print = MatMul(*term.args[1:], evaluate=False)
++                else: # Fallback for MatMul(-1)
++                    term_to_print = S.One
++
++                # Print and parenthesize the positive part
++                # Use precedence of the positive part itself
++                term_prec = precedence(term_to_print)
++                t = self.parenthesize(term_to_print, PREC) # Parenthesize based on outer Add precedence
++
++                # Append with appropriate sign and spacing
++                if i > 0:
++                    tex_parts.append(" - %s" % t)
++                else: # First term
++                    tex_parts.append("-%s" % t)
++
++            else: # Term is not MatMul starting with -1
++                # Print and parenthesize the term itself
++                term_prec = precedence(term)
++                t = self.parenthesize(term, PREC) # Parenthesize based on outer Add precedence
++
++                # Check if the printed result already starts with '-'
++                if t.startswith('-'):
++                    if i > 0:
++                        # Add space, subtract the positive part
++                        tex_parts.append(" - %s" % t[1:])
++                    else:
++                        # First term is already negative, keep as is
++                        tex_parts.append(t)
++                else: # Positive term
++                    if i > 0:
++                        tex_parts.append(" + %s" % t)
++                    else:
++                        # First term is positive, no sign needed
++                        tex_parts.append(t)
++
++        return "".join(tex_parts)
+ 
+     def _print_MatMul(self, expr):
+         from sympy import Add, MatAdd, HadamardProduct
+diff --git a/sympy/printing/pretty/pretty.py b/sympy/printing/pretty/pretty.py
+index db24f4c612..272a5bd76c 100644
+--- a/sympy/printing/pretty/pretty.py
++++ b/sympy/printing/pretty/pretty.py
+@@ -819,7 +819,76 @@ def _print_BlockMatrix(self, B):
+         return self._print(B.blocks)
+ 
+     def _print_MatAdd(self, expr):
+-        return self._print_seq(expr.args, None, None, ' + ')
++        # Need access to MatMul, S, precedence, prettyForm, stringPict
++        from sympy.matrices.expressions import MatMul
++        from sympy.core import S
++        from sympy.printing.precedence import precedence, PRECEDENCE
++        from sympy.printing.pretty.pretty_symbology import pretty_symbol, hobj, vobj
++        from sympy.printing.pretty.stringpict import prettyForm, stringPict
++
++        terms = expr.args
++        PREC = PRECEDENCE['Add'] # Use standard Add precedence for parenthesizing terms
++        pform = None # Initialize the prettyForm
++
++        for i, term in enumerate(terms):
++            # Check if term is MatMul like (-1)*B or (-1)*A*B
++            is_negative = isinstance(term, MatMul) and term.args and term.args[0] == S.NegativeOne
++
++            if is_negative:
++                # Extract the positive part to print
++                if len(term.args) == 2: # (-1, Factor)
++                    term_to_print = term.args[1]
++                elif len(term.args) > 2: # (-1, Factor1, ...)
++                    term_to_print = MatMul(*term.args[1:], evaluate=False)
++                else: # Fallback for MatMul(-1)
++                    term_to_print = S.One
++
++                # Print and parenthesize the positive part
++                term_pform = self._print(term_to_print)
++                term_prec = precedence(term_to_print)
++                if term_prec < PREC:
++                    term_pform = prettyForm(*term_pform.parens())
++
++                # Append with appropriate sign and spacing
++                if i > 0:
++                    # Add " - " separator
++                    separator = stringPict(' - ')
++                    if pform is None: # Should not happen after first term
++                        pform = prettyForm(stringPict('ERROR')) # Corrected Indentation
++                    else:
++                        pform = prettyForm(*pform.right(separator))
++                        pform = prettyForm(*pform.right(term_pform))
++                else: # First term
++                    # Prepend "-"
++                    separator = stringPict('-')
++                    pform = prettyForm(*separator.right(term_pform))
++
++            else: # Term is not MatMul starting with -1
++                # Print and parenthesize the term itself
++                term_pform = self._print(term)
++                term_prec = precedence(term)
++                if term_prec < PREC:
++                    term_pform = prettyForm(*term_pform.parens())
++
++                # Check if the printed result already starts with '-'
++                # ... (comments) ...
++
++                # Append with appropriate sign and spacing
++                if i > 0:
++                    # Add " + " separator
++                    separator = stringPict(' + ')
++                    if pform is None: # Should not happen after first term
++                        pform = prettyForm(stringPict('ERROR')) # Corrected Indentation
++                    else:
++                        pform = prettyForm(*pform.right(separator)) # Corrected Indentation
++                        pform = prettyForm(*pform.right(term_pform)) # Corrected Indentation
++                else: # First term is positive
++                    pform = term_pform
++
++        if pform is None: # If expr.args was empty
++            return prettyForm('0') # Or empty string? Check MatAdd behavior for zero.
++
++        return pform
+ 
+     def _print_MatMul(self, expr):
+         args = list(expr.args)
+diff --git a/sympy/printing/str.py b/sympy/printing/str.py
+index 0baefe0f7f..f64e01db97 100644
+--- a/sympy/printing/str.py
++++ b/sympy/printing/str.py
+@@ -311,9 +311,61 @@ def _print_HadamardProduct(self, expr):
+         return '.*'.join([self.parenthesize(arg, precedence(expr))
+             for arg in expr.args])
+ 
+-    def _print_MatAdd(self, expr):
+-        return ' + '.join([self.parenthesize(arg, precedence(expr))
+-            for arg in expr.args])
++    def _print_MatAdd(self, expr, order=None):
++        # Need access to MatMul, S, precedence
++        from sympy.matrices.expressions import MatMul
++        from sympy.core import S
++        from sympy.printing.precedence import precedence
++
++        terms = expr.args
++        PREC = precedence(expr)
++        parts = []
++
++        for i, term in enumerate(terms):
++            # Check if term is MatMul like (-1)*B or (-1)*A*B
++            is_negative = isinstance(term, MatMul) and term.args and term.args[0] == S.NegativeOne
++
++            if is_negative:
++                # Extract the positive part to print
++                if len(term.args) == 2: # (-1, Factor)
++                    term_to_print = term.args[1]
++                elif len(term.args) > 2: # (-1, Factor1, ...)
++                    term_to_print = MatMul(*term.args[1:], evaluate=False)
++                else: # Fallback for MatMul(-1) -> should not happen? Print -1?
++                    term_to_print = S.One # Or maybe print '-1'? Let's stick to S.One for now.
++
++                # Print and parenthesize the positive part
++                # Use precedence of the positive part itself
++                term_prec = precedence(term_to_print)
++                t = self.parenthesize(term_to_print, PREC) # Parenthesize based on outer Add precedence
++
++                # Append with appropriate sign and spacing
++                if i > 0:
++                    parts.append(" - %s" % t)
++                else: # First term
++                    parts.append("-%s" % t)
++
++            else: # Term is not MatMul starting with -1
++                # Print and parenthesize the term itself
++                term_prec = precedence(term)
++                t = self.parenthesize(term, PREC) # Parenthesize based on outer Add precedence
++
++                # Check if the printed result already starts with '-'
++                if t.startswith('-'):
++                    if i > 0:
++                        # Add space, subtract the positive part
++                        parts.append(" - %s" % t[1:])
++                    else:
++                        # First term is already negative, keep as is
++                        parts.append(t)
++                else: # Positive term
++                    if i > 0:
++                        parts.append(" + %s" % t)
++                    else:
++                        # First term is positive, no sign needed
++                        parts.append(t)
++
++        return "".join(parts)
+ 
+     def _print_NaN(self, expr):
+         return 'nan'

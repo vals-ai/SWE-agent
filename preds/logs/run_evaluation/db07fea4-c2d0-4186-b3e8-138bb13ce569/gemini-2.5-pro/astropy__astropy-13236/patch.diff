@@ -1,0 +1,67 @@
+diff --git a/astropy/table/table.py b/astropy/table/table.py
+index 5afe2127a3..62a45f96e9 100644
+--- a/astropy/table/table.py
++++ b/astropy/table/table.py
+@@ -1243,6 +1243,10 @@ class Table:
+         # mixin class
+         if (not isinstance(data, Column) and not data_is_mixin
+                 and isinstance(data, np.ndarray) and len(data.dtype) > 1):
++            warnings.warn("In future versions structured numpy arrays will not be "
++                          "automatically converted to NdarrayMixin. Please wrap "
++                          "structured arrays in astropy.table.Column.",
++                          FutureWarning)
+             data = data.view(NdarrayMixin)
+             data_is_mixin = True
+ 
+diff --git a/astropy/table/tests/test_mixin.py b/astropy/table/tests/test_mixin.py
+index 2fdcd20d8f..c7c2a611d9 100644
+--- a/astropy/table/tests/test_mixin.py
++++ b/astropy/table/tests/test_mixin.py
+@@ -712,10 +712,12 @@ def test_ndarray_mixin():
+     d = np.arange(8, dtype='i8').reshape(4, 2).view(NdarrayMixin)
+ 
+     # Add one during initialization and the next as a new column.
+-    t = Table([a], names=['a'])
+-    t['b'] = b
+-    t['c'] = c
+-    t['d'] = d
++    # Expect FutureWarning for a, b, c but not d
++    with pytest.warns(FutureWarning, match='In future versions structured numpy arrays will not be'):
++        t = Table([a], names=['a'])
++        t['b'] = b
++        t['c'] = c
++    t['d'] = d  # 'd' is already NdarrayMixin, should not warn
+ 
+     assert isinstance(t['a'], NdarrayMixin)
+ 
+diff --git a/test_warning.py b/test_warning.py
+new file mode 100644
+index 0000000000..e4e5db5b40
+--- /dev/null
++++ b/test_warning.py
+@@ -0,0 +1,24 @@
++
++import numpy as np
++import warnings
++from astropy.table import Table, Column
++from astropy.utils.exceptions import AstropyUserWarning
++
++# Filter the specific FutureWarning we expect
++warnings.filterwarnings('always', category=FutureWarning,
++                        message='In future versions structured numpy arrays will not be automatically converted to NdarrayMixin.*')
++
++# Create a structured array
++struct_arr = np.array([(1, 'a', 2.0), (2, 'b', 3.0)], dtype=[('a', int), ('b', 'U1'), ('c', float)])
++
++print("Testing direct addition (should show warning):")
++# This should trigger the warning
++t1 = Table()
++t1['x'] = struct_arr
++
++print("\nTesting addition wrapped in Column (should NOT show warning):")
++# This should NOT trigger the warning
++t2 = Table()
++t2['y'] = Column(struct_arr)
++
++print("\nScript completed successfully.")
+\ No newline at end of file

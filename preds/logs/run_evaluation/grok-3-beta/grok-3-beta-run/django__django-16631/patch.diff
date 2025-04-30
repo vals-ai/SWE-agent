@@ -1,0 +1,55 @@
+diff --git a/django/contrib/auth/__init__.py b/django/contrib/auth/__init__.py
+index 155330c596..6ab529876c 100644
+--- a/django/contrib/auth/__init__.py
++++ b/django/contrib/auth/__init__.py
+@@ -199,9 +199,7 @@ def get_user(request):
+             # Verify the session
+             if hasattr(user, "get_session_auth_hash"):
+                 session_hash = request.session.get(HASH_SESSION_KEY)
+-                session_hash_verified = session_hash and constant_time_compare(
+-                    session_hash, user.get_session_auth_hash()
+-                )
++                session_hash_verified = session_hash and hasattr(user, "check_session_auth_hash") and user.check_session_auth_hash(session_hash)
+                 if not session_hash_verified:
+                     request.session.flush()
+                     user = None
+diff --git a/django/contrib/auth/base_user.py b/django/contrib/auth/base_user.py
+index 5ee30bf59c..6920c620d9 100644
+--- a/django/contrib/auth/base_user.py
++++ b/django/contrib/auth/base_user.py
+@@ -142,6 +142,35 @@ class AbstractBaseUser(models.Model):
+             algorithm="sha256",
+         ).hexdigest()
+ 
++    def check_session_auth_hash(self, stored_hash):
++        """
++        Check if the stored session auth hash matches the current password
++        using the current SECRET_KEY or any fallback keys.
++        """
++        from django.conf import settings
++        from django.utils.crypto import salted_hmac, constant_time_compare
++        key_salt = "django.contrib.auth.models.AbstractBaseUser.get_session_auth_hash"
++        # Try with current SECRET_KEY
++        current_hash = salted_hmac(
++            key_salt,
++            self.password,
++            secret=settings.SECRET_KEY,
++            algorithm="sha256",
++        ).hexdigest()
++        if constant_time_compare(stored_hash, current_hash):
++            return True
++        # Try with fallback keys if available
++        for fallback_key in getattr(settings, 'SECRET_KEY_FALLBACKS', []):
++            fallback_hash = salted_hmac(
++                key_salt,
++                self.password,
++                secret=fallback_key,
++                algorithm="sha256",
++            ).hexdigest()
++            if constant_time_compare(stored_hash, fallback_hash):
++                return True
++        return False
++
+     @classmethod
+     def get_email_field_name(cls):
+         try:

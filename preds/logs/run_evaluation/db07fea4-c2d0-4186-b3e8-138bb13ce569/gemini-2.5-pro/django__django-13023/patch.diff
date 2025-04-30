@@ -1,0 +1,32 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index 0fd69059ee..28374272f4 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -1501,7 +1501,7 @@ class DecimalField(Field):
+             return self.context.create_decimal_from_float(value)
+         try:
+             return decimal.Decimal(value)
+-        except decimal.InvalidOperation:
++        except (decimal.InvalidOperation, TypeError, ValueError):
+             raise exceptions.ValidationError(
+                 self.error_messages['invalid'],
+                 code='invalid',
+diff --git a/tests/model_fields/test_decimalfield.py b/tests/model_fields/test_decimalfield.py
+index e284005aa0..8f5902587b 100644
+--- a/tests/model_fields/test_decimalfield.py
++++ b/tests/model_fields/test_decimalfield.py
+@@ -24,6 +24,14 @@ class DecimalFieldTests(TestCase):
+         msg = '“abc” value must be a decimal number.'
+         with self.assertRaisesMessage(ValidationError, msg):
+             f.to_python('abc')
++        # Test that dict input raises ValidationError
++        msg = "“{'a': 1}” value must be a decimal number."
++        with self.assertRaisesMessage(ValidationError, msg):
++            f.to_python({'a': 1})
++        # Test that list input raises ValidationError
++        msg = "“['1']” value must be a decimal number."
++        with self.assertRaisesMessage(ValidationError, msg):
++            f.to_python(['1'])
+ 
+     def test_default(self):
+         f = models.DecimalField(default=Decimal('0.00'))

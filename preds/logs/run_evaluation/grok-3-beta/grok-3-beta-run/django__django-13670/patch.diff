@@ -1,0 +1,68 @@
+diff --git a/django/utils/dateformat.py b/django/utils/dateformat.py
+index afd36d79e0..e931a6b193 100644
+--- a/django/utils/dateformat.py
++++ b/django/utils/dateformat.py
+@@ -325,8 +325,8 @@ class DateFormat(TimeFormat):
+         return self.data.isocalendar()[1]
+ 
+     def y(self):
+-        "Year, 2 digits; e.g. '99'"
+-        return str(self.data.year)[2:]
++        "Year, 2 digits with leading zeros; e.g. '99' or '23' for year 123"
++        return '%02d' % (self.data.year % 100)
+ 
+     def Y(self):
+         "Year, 4 digits; e.g. '1999'"
+diff --git a/reproduce_dateformat_bug.py b/reproduce_dateformat_bug.py
+new file mode 100644
+index 0000000000..d652911a7f
+--- /dev/null
++++ b/reproduce_dateformat_bug.py
+@@ -0,0 +1,20 @@
++
++import datetime
++from django.utils import dateformat
++import django.conf
++import os
++
++# Configure Django settings manually
++django.conf.settings.configure(TIME_ZONE='UTC')
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'dummy_settings')
++
++# Test dateformat with a year less than 1000
++date_obj = datetime.datetime(123, 4, 5, 6, 7)
++formatted_date = dateformat.format(date_obj, 'y')
++print(f'Django dateformat output for year 123 with format "y": {formatted_date}')
++
++# Compare with Python's strftime
++strftime_output = date_obj.strftime('%y')
++print(f'Python strftime output for year 123 with format "%y": {strftime_output}')
++
++print('Script completed successfully, no errors.')
+\ No newline at end of file
+diff --git a/test_dateformat_years.py b/test_dateformat_years.py
+new file mode 100644
+index 0000000000..85c13ce5a2
+--- /dev/null
++++ b/test_dateformat_years.py
+@@ -0,0 +1,19 @@
++
++import datetime
++from django.utils import dateformat
++import django.conf
++import os
++
++# Configure Django settings manually
++django.conf.settings.configure(TIME_ZONE='UTC')
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'dummy_settings')
++
++# Test various years with format 'y'
++test_years = [1, 9, 10, 99, 100, 999, 1000, 2023]
++for year in test_years:
++    date_obj = datetime.datetime(year, 1, 1, 0, 0)
++    formatted_date = dateformat.format(date_obj, 'y')
++    strftime_output = date_obj.strftime('%y')
++    print(f'Year {year}: Django dateformat = {formatted_date}, Python strftime = {strftime_output}')
++
++print('Test script completed successfully, no errors.')
+\ No newline at end of file

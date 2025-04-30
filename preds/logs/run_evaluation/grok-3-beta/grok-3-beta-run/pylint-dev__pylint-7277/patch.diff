@@ -1,0 +1,47 @@
+diff --git a/dummy.py b/dummy.py
+new file mode 100644
+index 000000000..4dd8487e0
+--- /dev/null
++++ b/dummy.py
+@@ -0,0 +1 @@
++print("dummy file")
+\ No newline at end of file
+diff --git a/pylint/__init__.py b/pylint/__init__.py
+index 9f3dd74e6..0ed7318da 100644
+--- a/pylint/__init__.py
++++ b/pylint/__init__.py
+@@ -96,7 +96,9 @@ def modify_sys_path() -> None:
+       if pylint is installed in an editable configuration (as the last item).
+       https://github.com/PyCQA/pylint/issues/4161
+     """
+-    sys.path.pop(0)
++    # Only remove the first entry if it represents the current working directory
++    if sys.path and sys.path[0] in ("", ".", os.getcwd()):
++        sys.path.pop(0)
+     env_pythonpath = os.environ.get("PYTHONPATH", "")
+     cwd = os.getcwd()
+     if env_pythonpath.startswith(":") and env_pythonpath not in (f":{cwd}", ":."):
+diff --git a/reproduce_pylint_bug.py b/reproduce_pylint_bug.py
+new file mode 100644
+index 000000000..1a3c33c96
+--- /dev/null
++++ b/reproduce_pylint_bug.py
+@@ -0,0 +1,17 @@
++
++import sys
++import runpy
++
++sys.path.insert(0, "something")
++
++print("Before running pylint, sys.path[0] is:", sys.path[0])
++# Create a dummy file to lint so pylint exits properly
++with open('dummy.py', 'w') as f:
++    f.write('print("dummy file")')
++try:
++    runpy.run_module('pylint', run_name="__main__", alter_sys=True, init_globals={'sys.argv': ['pylint', 'dummy.py']})
++except SystemExit:
++    print("Pylint exited with SystemExit, continuing...")
++except Exception as e:
++    print("An error occurred while running pylint:", str(e))
++print("After running pylint, sys.path[0] is:", sys.path[0])
+\ No newline at end of file

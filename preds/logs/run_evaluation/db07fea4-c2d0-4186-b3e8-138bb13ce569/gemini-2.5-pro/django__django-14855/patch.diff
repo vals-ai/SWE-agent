@@ -1,0 +1,87 @@
+diff --git a/django/contrib/admin/helpers.py b/django/contrib/admin/helpers.py
+index dd154f72ee..fc1e489114 100644
+--- a/django/contrib/admin/helpers.py
++++ b/django/contrib/admin/helpers.py
+@@ -204,12 +204,16 @@ class AdminReadonlyField:
+         return format_html('<label{}>{}{}</label>', flatatt(attrs), capfirst(label), self.form.label_suffix)
+ 
+     def get_admin_url(self, remote_field, remote_obj):
+-        url_name = 'admin:%s_%s_change' % (
++        url_name = '%s:%s_%s_change' % (self.model_admin.admin_site.name,
+             remote_field.model._meta.app_label,
+             remote_field.model._meta.model_name,
+         )
+         try:
+-            url = reverse(url_name, args=[quote(remote_obj.pk)])
++            url = reverse(
++                url_name,
++                args=[quote(remote_obj.pk)],
++                current_app=self.model_admin.admin_site.name
++            )
+             return format_html('<a href="{}">{}</a>', url, remote_obj)
+         except NoReverseMatch:
+             return str(remote_obj)
+diff --git a/tests/admin_views/admin.py b/tests/admin_views/admin.py
+index e2ecc9ed53..0aadbe8840 100644
+--- a/tests/admin_views/admin.py
++++ b/tests/admin_views/admin.py
+@@ -172,6 +172,7 @@ class ArticleAdmin(ArticleAdminWithExtraUrl):
+ 
+ 
+ class ArticleAdmin2(admin.ModelAdmin):
++    readonly_fields = ('section',)
+ 
+     def has_module_permission(self, request):
+         return False
+diff --git a/tests/admin_views/customadmin.py b/tests/admin_views/customadmin.py
+index a9d8a060b9..87d50d633a 100644
+--- a/tests/admin_views/customadmin.py
++++ b/tests/admin_views/customadmin.py
+@@ -53,7 +53,7 @@ class BookAdmin(admin.ModelAdmin):
+ 
+ site = Admin2(name="admin2")
+ 
+-site.register(models.Article, base_admin.ArticleAdmin)
++site.register(models.Article, base_admin.ArticleAdmin2)
+ site.register(models.Book, BookAdmin)
+ site.register(models.Section, inlines=[base_admin.ArticleInline], search_fields=['name'])
+ site.register(models.Thing, base_admin.ThingAdmin)
+diff --git a/tests/admin_views/tests.py b/tests/admin_views/tests.py
+index 9f9e924b62..fbf00f5ade 100644
+--- a/tests/admin_views/tests.py
++++ b/tests/admin_views/tests.py
+@@ -1512,6 +1512,34 @@ class CustomModelAdminTest(AdminViewBasicTestCase):
+         response = self.client.get(reverse('admin4:auth_user_password_change', args=(su.pk,)))
+         self.assertEqual(response.status_code, 200)
+ 
++    def test_custom_admin_site_readonly_foreignkey_link(self):
++        """
++        Links for readonly ForeignKey fields in a custom AdminSite point to
++        the custom site, not the default 'admin'.
++        """
++        # admin2 is a custom AdminSite instance defined in admin_views.urls
++        # Article has a ForeignKey to Section
++        # ArticleAdmin2 has 'section' in readonly_fields
++        section = Section.objects.create(name='Test Section for Custom Admin')
++        article = Article.objects.create(
++            title='Test Article',
++            content='Test Content',
++            date=datetime.datetime.now(),
++            section=section,
++        )
++        # URL for the Article change view in the custom admin site 'admin2'
++        change_url = reverse('admin2:admin_views_article_change', args=[article.pk])
++        response = self.client.get(change_url)
++        self.assertEqual(response.status_code, 200)
++
++        # Expected URL for the readonly Section link within the 'admin2' site
++        expected_section_url = reverse('admin2:admin_views_section_change', args=[section.pk])
++        # Check if the link in the response HTML points to the correct custom admin URL
++        self.assertContains(response, f'href="{expected_section_url}"')
++        # Ensure it doesn't point to the default admin URL
++        default_section_url = reverse('admin:admin_views_section_change', args=[section.pk])
++        self.assertNotContains(response, f'href="{default_section_url}"')
++
+ 
+ def get_perm(Model, codename):
+     """Return the permission object, for the Model"""

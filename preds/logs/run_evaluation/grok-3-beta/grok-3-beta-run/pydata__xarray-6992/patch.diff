@@ -1,0 +1,49 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..5a057e16
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,5 @@
++import xarray as xr
++
++ds = xr.Dataset(coords={"a": ("x", [1, 2, 3]), "b": ("x", ["a", "b", "c"])})
++result = ds.set_index(z=["a", "b"]).reset_index("z", drop=True)
++print("Script completed successfully, no errors.")
+diff --git a/test_edge_cases.py b/test_edge_cases.py
+new file mode 100644
+index 00000000..2926beba
+--- /dev/null
++++ b/test_edge_cases.py
+@@ -0,0 +1,17 @@
++
++import xarray as xr
++
++# Test 1: Normal dataset with coords and data vars
++ds1 = xr.Dataset(data_vars={'temp': (('x',), [25, 26, 27])}, coords={'x': [1, 2, 3]})
++print('Test 1 - Normal dataset:', len(ds1.data_vars))
++
++# Test 2: Dataset with more coords than variables after operations
++ds2 = xr.Dataset(coords={'a': ('x', [1, 2, 3]), 'b': ('x', ['a', 'b', 'c'])})
++result = ds2.set_index(z=['a', 'b']).reset_index('z', drop=True)
++print('Test 2 - More coords after reset:', len(result.data_vars))
++
++# Test 3: Empty dataset
++ds3 = xr.Dataset()
++print('Test 3 - Empty dataset:', len(ds3.data_vars))
++
++print('All tests completed successfully, no errors.')
+\ No newline at end of file
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index 620f32f8..8c4f67b1 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -365,7 +365,8 @@ class DataVariables(Mapping[Any, "DataArray"]):
+         )
+ 
+     def __len__(self) -> int:
+-        return len(self._dataset._variables) - len(self._dataset._coord_names)
++        result = len(self._dataset._variables) - len(self._dataset._coord_names)
++        return max(0, result)  # Ensure non-negative length
+ 
+     def __contains__(self, key: Hashable) -> bool:
+         return key in self._dataset._variables and key not in self._dataset._coord_names

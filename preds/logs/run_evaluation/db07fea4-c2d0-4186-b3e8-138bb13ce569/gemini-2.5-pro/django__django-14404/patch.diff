@@ -1,0 +1,42 @@
+diff --git a/django/contrib/admin/sites.py b/django/contrib/admin/sites.py
+index 59a4a0364d..317bff7ac9 100644
+--- a/django/contrib/admin/sites.py
++++ b/django/contrib/admin/sites.py
+@@ -420,9 +420,9 @@ class AdminSite:
+     def catch_all_view(self, request, url):
+         if settings.APPEND_SLASH and not url.endswith('/'):
+             urlconf = getattr(request, 'urlconf', None)
+-            path = '%s/' % request.path_info
++            path = '%s/' % request.path
+             try:
+-                match = resolve(path, urlconf)
++                match = resolve('%s/' % request.path_info, urlconf)
+             except Resolver404:
+                 pass
+             else:
+diff --git a/tests/admin_views/tests.py b/tests/admin_views/tests.py
+index b1658941ee..afb8b1153f 100644
+--- a/tests/admin_views/tests.py
++++ b/tests/admin_views/tests.py
+@@ -6613,7 +6613,20 @@ class AdminSiteFinalCatchAllPatternTests(TestCase):
+         self.client.force_login(user)
+         known_url = reverse('admin:admin_views_article_changelist')
+         response = self.client.get(known_url[:-1])
+-        self.assertRedirects(response, '/test_admin/admin/login/?next=/test_admin/admin/admin_views/article')
++
++    @override_settings(APPEND_SLASH=True, FORCE_SCRIPT_NAME='/prefix')
++    def test_missing_slash_append_slash_true_force_script_name(self):
++        superuser = User.objects.create_user(
++            username='staff',
++            password='secret',
++            email='staff@example.com',
++            is_staff=True,
++        )
++        self.client.force_login(superuser)
++        known_url_no_slash = '/prefix/test_admin/admin/admin_views/article'
++        known_url_with_slash = known_url_no_slash + '/'
++        response = self.client.get(known_url_no_slash)
++        self.assertRedirects(response, known_url_with_slash, status_code=301, target_status_code=403)
+ 
+     @override_settings(APPEND_SLASH=False)
+     def test_missing_slash_append_slash_false(self):

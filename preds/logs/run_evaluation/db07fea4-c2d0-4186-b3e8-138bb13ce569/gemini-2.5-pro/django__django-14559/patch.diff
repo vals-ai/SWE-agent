@@ -1,0 +1,31 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index 387deca527..15a3ec4e5d 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -563,9 +563,11 @@ class QuerySet:
+                     case_statement = Cast(case_statement, output_field=field)
+                 update_kwargs[field.attname] = case_statement
+             updates.append(([obj.pk for obj in batch_objs], update_kwargs))
++        rows_updated = 0
+         with transaction.atomic(using=self.db, savepoint=False):
+             for pks, update_kwargs in updates:
+-                self.filter(pk__in=pks).update(**update_kwargs)
++                rows_updated += self.filter(pk__in=pks).update(**update_kwargs)
++        return rows_updated
+     bulk_update.alters_data = True
+ 
+     def get_or_create(self, defaults=None, **kwargs):
+diff --git a/tests/queries/test_bulk_update.py b/tests/queries/test_bulk_update.py
+index be794df718..92ece4f6b1 100644
+--- a/tests/queries/test_bulk_update.py
++++ b/tests/queries/test_bulk_update.py
+@@ -29,7 +29,8 @@ class BulkUpdateNoteTests(TestCase):
+         for note in self.notes:
+             note.note = 'test-%s' % note.id
+         with self.assertNumQueries(1):
+-            Note.objects.bulk_update(self.notes, ['note'])
++            num_updated = Note.objects.bulk_update(self.notes, ['note'])
++            self.assertEqual(num_updated, len(self.notes))
+         self.assertCountEqual(
+             Note.objects.values_list('note', flat=True),
+             [cat.note for cat in self.notes]

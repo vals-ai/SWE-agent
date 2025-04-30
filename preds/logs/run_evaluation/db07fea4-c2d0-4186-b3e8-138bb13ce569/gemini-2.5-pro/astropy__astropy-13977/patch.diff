@@ -1,0 +1,58 @@
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..2d951ddb1f
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,51 @@
++
++import dataclasses
++import numpy as np
++import astropy.units as u
++
++
++@dataclasses.dataclass
++class DuckArray(np.lib.mixins.NDArrayOperatorsMixin):
++    ndarray: u.Quantity
++
++    @property
++    def unit(self) -> u.UnitBase:
++        return self.ndarray.unit
++
++    def __array_ufunc__(self, function, method, *inputs, **kwargs):
++
++        inputs_unwrapped = [inp.ndarray if isinstance(inp, DuckArray) else inp for inp in inputs]
++
++        for inp in inputs_unwrapped:
++            # Check if the input is a numpy array or Quantity, which have __array_ufunc__
++            if hasattr(inp, '__array_ufunc__'):
++                result = inp.__array_ufunc__(function, method, *inputs_unwrapped, **kwargs)
++                if result is not NotImplemented:
++                    # Ensure the result is wrapped back into DuckArray if it's a Quantity
++                    if isinstance(result, u.Quantity):
++                        return DuckArray(result)
++                    # If the result is not a Quantity (e.g., boolean from comparison), return it directly
++                    else:
++                        return result
++
++        return NotImplemented
++
++# This operation works
++print("Running: DuckArray(1 * u.mm) + (1 * u.m)")
++result1 = DuckArray(1 * u.mm) + (1 * u.m)
++print(f"Result 1: {result1}")
++
++# This operation also works
++print("\nRunning: (1 * u.mm) + DuckArray(1 * u.mm)")
++result2 = (1 * u.mm) + DuckArray(1 * u.mm)
++print(f"Result 2: {result2}")
++
++# This is the problematic operation
++print("\nRunning: (1 * u.m) + DuckArray(1 * u.mm)")
++try:
++    result3 = (1 * u.m) + DuckArray(1 * u.mm)
++    print(f"Result 3: {result3}")
++except ValueError as e:
++    print(f"Caught expected ValueError: {e}")
++
++print("\nScript completed.")
+\ No newline at end of file

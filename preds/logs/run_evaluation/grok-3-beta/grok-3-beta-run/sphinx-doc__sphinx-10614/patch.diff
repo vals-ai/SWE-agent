@@ -1,0 +1,14 @@
+diff --git a/sphinx/ext/graphviz.py b/sphinx/ext/graphviz.py
+index 8b21d9e3b..cb9bb5779 100644
+--- a/sphinx/ext/graphviz.py
++++ b/sphinx/ext/graphviz.py
+@@ -227,7 +227,8 @@ def fix_svg_relative_paths(self: SphinxTranslator, filepath: str) -> None:
+ 
+     for element in chain(
+         root.findall('.//svg:image[@xlink:href]', ns),
+-        root.findall('.//svg:a[@xlink:href]', ns),
++        # Temporarily skip adjusting 'a' tags for inheritance diagrams to fix link issues in nested files
++        # root.findall('.//svg:a[@xlink:href]', ns),
+     ):
+         scheme, hostname, url, query, fragment = urlsplit(element.attrib[href_name])
+         if hostname:

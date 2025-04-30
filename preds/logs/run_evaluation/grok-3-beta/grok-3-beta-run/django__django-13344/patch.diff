@@ -1,0 +1,176 @@
+diff --git a/django/core/handlers/base.py b/django/core/handlers/base.py
+index 169df6b3cf..d488febbfc 100644
+--- a/django/core/handlers/base.py
++++ b/django/core/handlers/base.py
+@@ -31,6 +31,7 @@ class BaseHandler:
+         """
+         self._view_middleware = []
+         self._template_response_middleware = []
++        self._response_middleware = []
+         self._exception_middleware = []
+ 
+         get_response = self._get_response_async if is_async else self._get_response
+@@ -78,6 +79,11 @@ class BaseHandler:
+                 self._template_response_middleware.append(
+                     self.adapt_method_mode(is_async, mw_instance.process_template_response),
+                 )
++            if hasattr(mw_instance, 'process_response'):
++                self._response_middleware.insert(
++                    0,
++                    self.adapt_method_mode(is_async, mw_instance.process_response),
++                )
+             if hasattr(mw_instance, 'process_exception'):
+                 # The exception-handling stack is still always synchronous for
+                 # now, so adapt that way.
+@@ -126,6 +132,9 @@ class BaseHandler:
+         # Setup default url resolver for this thread
+         set_urlconf(settings.ROOT_URLCONF)
+         response = self._middleware_chain(request)
++        # Apply response middleware
++        for middleware_method in self._response_middleware:
++            response = middleware_method(request, response)
+         response._resource_closers.append(request.close)
+         if response.status_code >= 400:
+             log_response(
+@@ -146,6 +155,9 @@ class BaseHandler:
+         # Setup default url resolver for this thread.
+         set_urlconf(settings.ROOT_URLCONF)
+         response = await self._middleware_chain(request)
++        # Apply response middleware
++        for middleware_method in self._response_middleware:
++            response = await middleware_method(request, response)
+         response._resource_closers.append(request.close)
+         if response.status_code >= 400:
+             await sync_to_async(log_response)(
+diff --git a/django_test_project/django_uvicorn_test/__init__.py b/django_test_project/django_uvicorn_test/__init__.py
+new file mode 100644
+index 0000000000..8b13789179
+--- /dev/null
++++ b/django_test_project/django_uvicorn_test/__init__.py
+@@ -0,0 +1 @@
++
+diff --git a/django_test_project/django_uvicorn_test/asgi.py b/django_test_project/django_uvicorn_test/asgi.py
+new file mode 100644
+index 0000000000..a819d5eecd
+--- /dev/null
++++ b/django_test_project/django_uvicorn_test/asgi.py
+@@ -0,0 +1,8 @@
++
++import os
++
++from django.core.asgi import get_asgi_application
++
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_uvicorn_test.settings')
++
++application = get_asgi_application()
+\ No newline at end of file
+diff --git a/django_test_project/django_uvicorn_test/middleware/__init__.py b/django_test_project/django_uvicorn_test/middleware/__init__.py
+new file mode 100644
+index 0000000000..8b13789179
+--- /dev/null
++++ b/django_test_project/django_uvicorn_test/middleware/__init__.py
+@@ -0,0 +1 @@
++
+diff --git a/django_test_project/django_uvicorn_test/middleware/dummy.py b/django_test_project/django_uvicorn_test/middleware/dummy.py
+new file mode 100644
+index 0000000000..4a19541bf1
+--- /dev/null
++++ b/django_test_project/django_uvicorn_test/middleware/dummy.py
+@@ -0,0 +1,7 @@
++
++from django.utils.deprecation import MiddlewareMixin
++
++class DummyMiddleware(MiddlewareMixin):
++    def process_response(self, request, response):
++        print(request.__class__, response.__class__)
++        return response
+\ No newline at end of file
+diff --git a/django_test_project/django_uvicorn_test/settings.py b/django_test_project/django_uvicorn_test/settings.py
+new file mode 100644
+index 0000000000..7b5ce3a61f
+--- /dev/null
++++ b/django_test_project/django_uvicorn_test/settings.py
+@@ -0,0 +1,20 @@
++
++MIDDLEWARE = [
++    'django_uvicorn_test.middleware.DummyMiddleware',
++    'django.middleware.security.SecurityMiddleware',
++]
++
++INSTALLED_APPS = [
++    'django.contrib.admin',
++    'django.contrib.auth',
++    'django.contrib.contenttypes',
++    'django.contrib.sessions',
++    'django.contrib.messages',
++    'django.contrib.staticfiles',
++]
++
++SECRET_KEY = 'dummy-secret-key-for-testing'
++
++DEBUG = True
++
++ALLOWED_HOSTS = ['*']
+\ No newline at end of file
+diff --git a/django_test_project/django_uvicorn_test/urls.py b/django_test_project/django_uvicorn_test/urls.py
+new file mode 100644
+index 0000000000..801125a8ac
+--- /dev/null
++++ b/django_test_project/django_uvicorn_test/urls.py
+@@ -0,0 +1,10 @@
++
++from django.urls import path
++from django.http import HttpResponse
++
++def dummy_view(request):
++    return HttpResponse('Dummy response')
++
++urlpatterns = [
++    path('', dummy_view),
++]
+\ No newline at end of file
+diff --git a/django_test_project/django_uvicorn_test/wsgi.py b/django_test_project/django_uvicorn_test/wsgi.py
+new file mode 100644
+index 0000000000..dec3ffab9f
+--- /dev/null
++++ b/django_test_project/django_uvicorn_test/wsgi.py
+@@ -0,0 +1,8 @@
++
++import os
++
++from django.core.wsgi import get_wsgi_application
++
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_uvicorn_test.settings')
++
++application = get_wsgi_application()
+\ No newline at end of file
+diff --git a/django_test_project/manage.py b/django_test_project/manage.py
+new file mode 100644
+index 0000000000..34d8ba744e
+--- /dev/null
++++ b/django_test_project/manage.py
+@@ -0,0 +1,23 @@
++
++#!/usr/bin/env python
++"""Django's command-line utility for administrative tasks."""
++import os
++import sys
++
++
++def main():
++    """Run administrative tasks."""
++    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django_uvicorn_test.settings')
++    try:
++        from django.core.management import execute_from_command_line
++    except ImportError as exc:
++        raise ImportError(
++            "Couldn't import Django. Are you sure it's installed and "
++            "available on your PYTHONPATH environment variable? Did you "
++            "forget to activate a virtual environment?"
++        ) from exc
++    execute_from_command_line(sys.argv)
++
++
++if __name__ == '__main__':
++    main()
+\ No newline at end of file

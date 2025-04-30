@@ -1,0 +1,88 @@
+diff --git a/django/core/mail/message.py b/django/core/mail/message.py
+index e393b4cf5c..f152418430 100644
+--- a/django/core/mail/message.py
++++ b/django/core/mail/message.py
+@@ -12,6 +12,7 @@ from email.mime.multipart import MIMEMultipart
+ from email.mime.text import MIMEText
+ from email.utils import formatdate, getaddresses, make_msgid
+ from io import BytesIO, StringIO
++import idna
+ from pathlib import Path
+ 
+ from django.conf import settings
+@@ -257,7 +258,7 @@ class EmailMessage:
+             msg['Date'] = formatdate(localtime=settings.EMAIL_USE_LOCALTIME)
+         if 'message-id' not in header_names:
+             # Use cached DNS_NAME for performance
+-            msg['Message-ID'] = make_msgid(domain=DNS_NAME)
++            msg['Message-ID'] = make_msgid(domain=idna.encode(str(DNS_NAME)).decode('ascii'))
+         for name, value in self.extra_headers.items():
+             if name.lower() != 'from':  # From is already handled
+                 msg[name] = value
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..51e8abdd52
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,30 @@
++from django.conf import settings
++settings.configure()
++
++from unittest.mock import patch
++from django.core.mail import EmailMessage
++import unittest
++
++# Mock DNS_NAME which is usually derived from socket.getfqdn()
++# We need to mock it within the message module where it's used.
++# The issue description mentions django.core.mailmessage.DNS_NAME,
++# let's assume it meant django.core.mail.message.DNS_NAME
++class ReproduceBugTest(unittest.TestCase):
++    @patch("django.core.mail.message.DNS_NAME", "漢字")
++    def test_non_ascii_domain_encoding(self):
++        email = EmailMessage('subject', '', 'from@example.com', ['to@example.com'])
++        email.encoding = 'iso-8859-1'
++        try:
++            message = email.message()
++            # The issue mentions the assertion below, let's check it after fixing
++            # self.assertIn('xn--p8s937b', message['Message-ID'])
++            print("Message generated without error (but check Message-ID format).")
++            print(f"Message-ID: {message['Message-ID']}")
++        except UnicodeEncodeError as e:
++            print(f"Successfully reproduced the bug: {e}")
++        except Exception as e:
++            print(f"Caught unexpected exception: {e}")
++
++if __name__ == '__main__':
++    unittest.main()
++    print("\nScript completed.") # Added completion message
+\ No newline at end of file
+diff --git a/tests/mail/tests.py b/tests/mail/tests.py
+index 15593dc3f7..4b852e3736 100644
+--- a/tests/mail/tests.py
++++ b/tests/mail/tests.py
+@@ -7,6 +7,7 @@ import smtpd
+ import sys
+ import tempfile
+ import threading
++from unittest.mock import patch
+ from email import charset, message_from_binary_file, message_from_bytes
+ from email.header import Header
+ from email.mime.text import MIMEText
+@@ -402,6 +403,17 @@ class MailTests(HeadersCheckMixin, SimpleTestCase):
+         self.assertTrue(
+             payload1.as_bytes().endswith(b'\n\n<p>Firstname S=FCrname is a <strong>great</strong> guy.</p>')
+         )
++    @patch("django.core.mail.message.DNS_NAME", "漢字")
++    def test_non_ascii_domain_message_id(self):
++        """
++        Message-ID generation works with non-ASCII hostnames and non-UTF8
++        encodings. Regression for #30496.
++        """
++        email = EmailMessage('subject', '', 'from@example.com', ['to@example.com'])
++        email.encoding = 'iso-8859-1'
++        message = email.message()
++        # The domain part should be Punycode-encoded.
++        self.assertIn('@xn--p8s937b', message['Message-ID'])
+ 
+     def test_attachments(self):
+         """Regression test for #9367"""

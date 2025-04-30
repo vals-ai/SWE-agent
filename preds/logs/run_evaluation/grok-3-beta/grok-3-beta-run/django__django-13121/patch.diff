@@ -1,0 +1,20 @@
+diff --git a/django/db/backends/base/operations.py b/django/db/backends/base/operations.py
+index 2e283a3193..3a3c666df3 100644
+--- a/django/db/backends/base/operations.py
++++ b/django/db/backends/base/operations.py
+@@ -580,7 +580,14 @@ class BaseDatabaseOperations:
+ 
+     def convert_durationfield_value(self, value, expression, connection):
+         if value is not None:
+-            return datetime.timedelta(0, 0, value)
++            # Handle string or numeric input
++            if isinstance(value, str):
++                value = float(value)
++            # If the value is very large, assume it's already in microseconds
++            if abs(value) > 1e6:
++                return datetime.timedelta(microseconds=value)
++            # Otherwise, assume it's in seconds and convert to microseconds
++            return datetime.timedelta(microseconds=value * 1000000)
+ 
+     def check_expression_support(self, expression):
+         """

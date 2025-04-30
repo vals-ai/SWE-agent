@@ -1,0 +1,55 @@
+diff --git a/pylint/pyreverse/diagrams.py b/pylint/pyreverse/diagrams.py
+index bf9f67af6..04229e1bc 100644
+--- a/pylint/pyreverse/diagrams.py
++++ b/pylint/pyreverse/diagrams.py
+@@ -91,9 +91,47 @@ class ClassDiagram(Figure, FilterMixIn):
+         ):
+             if not self.show_attr(node_name):
+                 continue
+-            names = self.class_names(associated_nodes)
+-            if names:
+-                node_name = "{} : {}".format(node_name, ", ".join(names))
++            # Try to get type hint from __init__ args first
++            type_hint = None
++            if "__init__" in node.locals:
++                # Ensure __init__ is a FunctionDef (could be AssignName etc.)
++                init_methods = [n for n in node.locals["__init__"] if isinstance(n, astroid.FunctionDef)]
++                if init_methods:
++                    init_method = init_methods[0]
++                    args_node = init_method.args
++                    # Combine posonlyargs and args for checking regular arguments
++                    all_args = (args_node.posonlyargs or []) + (args_node.args or [])
++                    # Check annotations for regular arguments (posonlyargs + args)
++                    for i, arg in enumerate(all_args):
++                        # Check if the arg name matches and if there's a corresponding annotation
++                        # The annotations list corresponds positionally to all_args
++                        if arg.name == node_name and i < len(args_node.annotations) and args_node.annotations[i]:
++                            type_hint = args_node.annotations[i].as_string()
++                            break # Found the hint
++
++                    # Check vararg annotation if no hint found yet
++                    if not type_hint and args_node.vararg == node_name and args_node.varargannotation:
++                        type_hint = args_node.varargannotation.as_string()
++
++                    # Check kwarg annotation if no hint found yet
++                    if not type_hint and args_node.kwarg == node_name and args_node.kwargannotation:
++                        type_hint = args_node.kwargannotation.as_string()
++
++                    # Check kwonlyargs annotations if no hint found yet
++                    if not type_hint:
++                        for i, arg in enumerate(args_node.kwonlyargs or []):
++                            # kwonlyargs_annotations corresponds positionally to kwonlyargs
++                            if arg.name == node_name and i < len(args_node.kwonlyargs_annotations) and args_node.kwonlyargs_annotations[i]:
++                                type_hint = args_node.kwonlyargs_annotations[i].as_string()
++                                break # Found the hint
++
++            if type_hint:
++                node_name = f"{node_name} : {type_hint}"
++            else:
++                # Fallback to inferred types if no hint found
++                names = self.class_names(associated_nodes)
++                if names:
++                    node_name = "{} : {}".format(node_name, ", ".join(names))
+             attrs.append(node_name)
+         return sorted(attrs)
+ 

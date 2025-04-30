@@ -1,0 +1,32 @@
+diff --git a/sphinx/util/docfields.py b/sphinx/util/docfields.py
+index 6d48e910c..b4db6837c 100644
+--- a/sphinx/util/docfields.py
++++ b/sphinx/util/docfields.py
+@@ -75,7 +75,26 @@ class Field:
+     def make_xrefs(self, rolename: str, domain: str, target: str,
+                    innernode: Type[TextlikeNode] = addnodes.literal_emphasis,
+                    contnode: Node = None, env: BuildEnvironment = None) -> List[Node]:
+-        return [self.make_xref(rolename, domain, target, innernode, contnode, env)]
++        # Support "|" for union types (like PEP 604) in :type: fields
++        if "|" not in target:
++            # Not a union type, treat as single target.
++            # If contnode is provided, make_xref uses it as the link content.
++            return [self.make_xref(rolename, domain, target, innernode, contnode, env)]
++        else:
++            # Union type found, create xref for each part separated by " | ".
++            # We ignore contnode here as it represents the content of a single link.
++            nodes_list = []
++            parts = [p.strip() for p in target.split("|")]
++            first = True
++            for part in parts:
++                if not part:  # Skip empty parts like in "str | | int"
++                    continue
++                if not first:
++                    # Add separator before the next type
++                    nodes_list.append(nodes.Text(" | "))
++                nodes_list.append(self.make_xref(rolename, domain, part, innernode, None, env))
++                first = False
++            return nodes_list
+ 
+     def make_entry(self, fieldarg: str, content: List[Node]) -> Tuple[str, List[Node]]:
+         return (fieldarg, content)

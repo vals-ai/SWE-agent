@@ -1,0 +1,27 @@
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..7b1136b604
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,20 @@
++
++
++from sympy import symbols, expand, factor, I
++
++x, y = symbols('x, y')
++
++# Original expression: (x-1)*(y-1)
++z = expand((x-1)*(y-1))
++print(f"Original expanded expression (z): {z}")
++
++# Factor without extension
++factored_z = factor(z)
++print(f"Factored z (no extension): {factored_z}")
++
++# Factor with extension=[I]
++factored_z_ext = factor(z, extension=[I])
++print(f"Factored z (extension=[I]): {factored_z_ext}")
++
++# Add a success message at the end
++print("\nScript completed.")
+\ No newline at end of file

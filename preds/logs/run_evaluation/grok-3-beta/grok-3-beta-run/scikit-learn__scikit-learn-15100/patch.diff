@@ -1,0 +1,82 @@
+diff --git a/additional_tests.py b/additional_tests.py
+new file mode 100644
+index 000000000..577511bea
+--- /dev/null
++++ b/additional_tests.py
+@@ -0,0 +1,34 @@
++
++from sklearn.feature_extraction.text import strip_accents_unicode
++
++# Test with different accented characters
++# 'é' as a single code point
++e1 = chr(233)
++# 'e' + combining acute accent
++e2 = chr(101) + chr(769)
++
++# 'à' as a single code point
++a1 = chr(224)
++# 'a' + combining grave accent
++a2 = chr(97) + chr(768)
++
++# Mixed string with different forms
++mixed = e1 + a2 + ' normal text'
++
++# Print original strings
++print('Original e1:', e1)
++print('Original e2:', e2)
++print('Original a1:', a1)
++print('Original a2:', a2)
++print('Original mixed:', mixed)
++
++# Test stripping accents
++print('Stripped e1:', strip_accents_unicode(e1))
++print('Stripped e2:', strip_accents_unicode(e2))
++print('Stripped a1:', strip_accents_unicode(a1))
++print('Stripped a2:', strip_accents_unicode(a2))
++print('Stripped mixed:', strip_accents_unicode(mixed))
++
++# Verify results
++print('e1 == e2 after stripping:', strip_accents_unicode(e1) == strip_accents_unicode(e2))
++print('a1 == a2 after stripping:', strip_accents_unicode(a1) == strip_accents_unicode(a2))
+\ No newline at end of file
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 000000000..c99aa8e17
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,18 @@
++
++from sklearn.feature_extraction.text import strip_accents_unicode
++
++# This string contains one code point, "LATIN SMALL LETTER N WITH TILDE"
++s1 = chr(241)
++
++# This string contains two code points, "LATIN SMALL LETTER N" followed by "COMBINING TILDE"
++s2 = chr(110) + chr(771)
++
++# They are visually identical, as expected
++print(s1) # => ñ
++print(s2) # => ñ
++
++# The tilde is removed from s1, as expected
++print(strip_accents_unicode(s1)) # => n
++
++# But strip_accents_unicode returns s2 unchanged
++print(strip_accents_unicode(s2) == s2) # => True
+\ No newline at end of file
+diff --git a/sklearn/feature_extraction/text.py b/sklearn/feature_extraction/text.py
+index bb5a9d646..11236d958 100644
+--- a/sklearn/feature_extraction/text.py
++++ b/sklearn/feature_extraction/text.py
+@@ -130,10 +130,7 @@ def strip_accents_unicode(s):
+         ASCII equivalent.
+     """
+     normalized = unicodedata.normalize('NFKD', s)
+-    if normalized == s:
+-        return s
+-    else:
+-        return ''.join([c for c in normalized if not unicodedata.combining(c)])
++    return ''.join([c for c in normalized if not unicodedata.combining(c)])
+ 
+ 
+ def strip_accents_ascii(s):

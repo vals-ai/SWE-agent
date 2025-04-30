@@ -1,0 +1,60 @@
+diff --git a/django/contrib/auth/validators.py b/django/contrib/auth/validators.py
+index b4878cfd45..1304f20a60 100644
+--- a/django/contrib/auth/validators.py
++++ b/django/contrib/auth/validators.py
+@@ -7,7 +7,7 @@ from django.utils.translation import gettext_lazy as _
+ 
+ @deconstructible
+ class ASCIIUsernameValidator(validators.RegexValidator):
+-    regex = r'^[\w.@+-]+$'
++    regex = r'\A[\w.@+-]+\Z'
+     message = _(
+         'Enter a valid username. This value may contain only English letters, '
+         'numbers, and @/./+/-/_ characters.'
+@@ -17,7 +17,7 @@ class ASCIIUsernameValidator(validators.RegexValidator):
+ 
+ @deconstructible
+ class UnicodeUsernameValidator(validators.RegexValidator):
+-    regex = r'^[\w.@+-]+$'
++    regex = r'\A[\w.@+-]+\Z'
+     message = _(
+         'Enter a valid username. This value may contain only letters, '
+         'numbers, and @/./+/-/_ characters.'
+diff --git a/test_username_validator.py b/test_username_validator.py
+new file mode 100644
+index 0000000000..aebb139f3a
+--- /dev/null
++++ b/test_username_validator.py
+@@ -0,0 +1,31 @@
++
++from django.contrib.auth.validators import ASCIIUsernameValidator, UnicodeUsernameValidator
++
++# Test ASCIIUsernameValidator
++ascii_validator = ASCIIUsernameValidator()
++try:
++    ascii_validator('testuser\n')
++    print('ASCII validator FAILED to reject username with newline')
++except Exception:
++    print('ASCII validator correctly rejected username with newline')
++
++# Test UnicodeUsernameValidator
++unicode_validator = UnicodeUsernameValidator()
++try:
++    unicode_validator('testuser\n')
++    print('Unicode validator FAILED to reject username with newline')
++except Exception:
++    print('Unicode validator correctly rejected username with newline')
++
++# Additional test for valid username
++try:
++    ascii_validator('testuser')
++    print('ASCII validator correctly accepted valid username')
++except ValueError:
++    print('ASCII validator incorrectly rejected valid username')
++
++try:
++    unicode_validator('testuser')
++    print('Unicode validator correctly accepted valid username')
++except ValueError:
++    print('Unicode validator incorrectly rejected valid username')
+\ No newline at end of file

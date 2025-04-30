@@ -1,0 +1,132 @@
+diff --git a/sphinx/directives/other.py b/sphinx/directives/other.py
+index 19f7c0a8d..081372390 100644
+--- a/sphinx/directives/other.py
++++ b/sphinx/directives/other.py
+@@ -8,6 +8,9 @@ from docutils.parsers.rst import directives
+ from docutils.parsers.rst.directives.admonitions import BaseAdmonition
+ from docutils.parsers.rst.directives.misc import Class
+ from docutils.parsers.rst.directives.misc import Include as BaseInclude
++from sphinx.io import SphinxFileInput
++from docutils.statemachine import StringList
++from docutils.utils.error_reporting import ErrorString
+ 
+ from sphinx import addnodes
+ from sphinx.domains.changeset import VersionChange  # noqa: F401  # for compatibility
+@@ -379,6 +382,117 @@ class Include(BaseInclude, SphinxDirective):
+         return super().run()
+ 
+ 
++
++        try:
++            # Resolve the path relative to the current document's directory
++            rel_filename, filename = self.env.relfn2path(self.arguments[0])
++        except Exception as exc:
++            # Handle path resolution errors
++            error_str = ErrorString(exc)
++            logger.warning(f'Include file path {self.arguments[0]!r} resolution error: {error_str}',
++                           location=(self.env.docname, self.lineno))
++            error_node = self.state.document.reporter.error(
++                f'Problems resolving "{self.name}" directive path "{self.arguments[0]}":\n{error_str}.',
++                nodes.literal_block(self.block_text, self.block_text), line=self.lineno)
++            return [error_node]
++
++        # Record the dependency on the included file
++        self.env.note_included(filename)
++
++        # Determine the source path for SphinxFileInput (needed for relative paths within include options)
++        source_path = self.state_machine.document.attributes['source']
++        if not source_path:
++            source_path = filename # Fallback if source is unknown
++
++        # Gather options for SphinxFileInput
++        encoding = self.options.get('encoding', self.env.config.source_encoding)
++        tab_width = self.options.get('tab-width', getattr(self.state.document.settings, 'tab_stop', 8))
++        start_line = self.options.get('start-line')
++        end_line = self.options.get('end-line')
++        start_after = self.options.get('start-after')
++        end_before = self.options.get('end-before')
++
++        try:
++            # Read the file content using SphinxFileInput
++            file_input = SphinxFileInput(filename, # Pass filename as first positional arg (source)
++                                         source_path=source_path,
++                                         encoding=encoding,
++                                         # tab_width=tab_width, # Removed
++                                         start_line=start_line,
++                                         end_line=end_line,
++                                         start_after_text=start_after,
++                                         end_before_text=end_before)
++            content = file_input.read()
++
++            # Emit the 'source-read' event for the included content
++            content_list = [content]
++            # Use rel_filename for the event's docname argument
++            self.env.events.emit('source-read', rel_filename, content_list)
++            modified_content = content_list[0] # Get potentially modified content
++
++            # Prepare content for insertion (using StringList for docutils)
++            content_lines = StringList(modified_content.splitlines(), source=filename)
++
++            # Handle special include options: :literal:, :code:, :raw:
++            if 'literal' in self.options or 'code' in self.options:
++                # Create a literal block node
++                literal_block = nodes.literal_block(modified_content, modified_content,
++                                                    source=filename)
++                # Set language based on option (:code: value or 'text' for :literal:)
++                literal_block['language'] = self.options.get('code', 'text')
++                self.set_source_info(literal_block) # Set source/line info
++
++                # Handle :linenos: option
++                if 'linenos' in self.options:
++                    try:
++                        linenostart = 1
++                        # Check if the option has an integer value (e.g., :linenos: 5)
++                        if self.options['linenos'] is not None:
++                            try:
++                                linenostart = directives.positive_int(str(self.options['linenos']))
++                            except ValueError:
++                                # Raise error if value is not a positive integer
++                                raise self.error(':linenos: option requires a positive integer value')
++                        literal_block['linenos'] = True
++                        literal_block['highlight_args'] = {'linenostart': linenostart}
++                    except ValueError as exc:
++                        # Reraise directive-specific errors
++                        raise self.error(f'Invalid value for :linenos: option: {exc}')
++                    except Exception as exc:
++                        # Log other unexpected errors during linenos processing
++                        logger.warning(f'Could not process :linenos: option for include: {exc}',
++                                       location=(self.env.docname, self.lineno))
++
++                return [literal_block] # Return the created literal block
++
++            elif 'raw' in self.options:
++                # Handle :raw: option
++                raw_formats = self.options.get('raw', '').split()
++                if not raw_formats:
++                    raise self.error(':raw: option requires one or more format specifiers')
++                # Create a raw node
++                raw_node = nodes.raw('', modified_content, format=' '.join(raw_formats),
++                                     source=filename, line=self.lineno)
++                self.set_source_info(raw_node)
++                return [raw_node] # Return the created raw node
++
++            else:
++                # Standard include: insert content lines into the state machine
++                self.state_machine.insert_input(content_lines, filename)
++                return [] # Return empty list as content is inserted for parsing
++
++        except Exception as exc:
++            # Handle errors during file reading or processing
++            error_str = ErrorString(exc)
++            logger.warning(f'Include file {filename!r} reading error: {error_str}',
++                           location=(self.env.docname, self.lineno))
++            error_node = self.state.document.reporter.error(
++                f'Problems with "{self.name}" directive reading "{filename}":\n{error_str}.',
++                nodes.literal_block(self.block_text, self.block_text), line=self.lineno)
++            return [error_node] # Return error node
++
++
++
+ def setup(app: Sphinx) -> dict[str, Any]:
+     directives.register_directive('toctree', TocTree)
+     directives.register_directive('sectionauthor', Author)

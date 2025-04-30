@@ -1,0 +1,93 @@
+diff --git a/django/template/defaultfilters.py b/django/template/defaultfilters.py
+index 7a5b28d159..602d56e075 100644
+--- a/django/template/defaultfilters.py
++++ b/django/template/defaultfilters.py
+@@ -150,14 +150,17 @@ def floatformat(text, arg=-1):
+         elif last_char == "u":
+             use_l10n = False
+             arg = arg[:-1] or -1
+-    try:
+-        input_val = repr(text)
+-        d = Decimal(input_val)
+-    except InvalidOperation:
++    if isinstance(text, Decimal):
++        d = text
++    else:
+         try:
+-            d = Decimal(str(float(text)))
+-        except (ValueError, InvalidOperation, TypeError):
+-            return ""
++            input_val = repr(text)
++            d = Decimal(input_val)
++        except InvalidOperation:
++            try:
++                d = Decimal(str(float(text)))
++            except (ValueError, InvalidOperation, TypeError):
++                return ""
+     try:
+         p = int(arg)
+     except ValueError:
+diff --git a/reproduce_decimal_precision.py b/reproduce_decimal_precision.py
+new file mode 100644
+index 0000000000..05bebe385d
+--- /dev/null
++++ b/reproduce_decimal_precision.py
+@@ -0,0 +1,17 @@
++
++from decimal import Decimal
++from django import setup
++from django.conf import settings
++from django.template import Template, Context
++
++TEMPLATES = [
++    {
++        'BACKEND': 'django.template.backends.django.DjangoTemplates',
++    },
++]
++settings.configure(TEMPLATES=TEMPLATES)
++setup()
++
++t = Template('{{ value|floatformat:20 }}')
++c = Context({'value': Decimal('42.12345678901234567890')})
++print(t.render(c))  # Expected: 42.12345678901234567890, Actual: 42.12345678901234400000
+\ No newline at end of file
+diff --git a/test_decimal_edge_cases.py b/test_decimal_edge_cases.py
+new file mode 100644
+index 0000000000..5a5d5ac5e8
+--- /dev/null
++++ b/test_decimal_edge_cases.py
+@@ -0,0 +1,33 @@
++
++from decimal import Decimal
++from django import setup
++from django.conf import settings
++from django.template import Template, Context
++
++TEMPLATES = [
++    {
++        'BACKEND': 'django.template.backends.django.DjangoTemplates',
++    },
++]
++settings.configure(TEMPLATES=TEMPLATES)
++setup()
++
++t = Template('{{ value|floatformat:20 }}')
++
++# Test case 1: Very large Decimal number
++c1 = Context({'value': Decimal('12345678901234567890.12345678901234567890')})
++print('Test 1 - Large number:', t.render(c1))
++
++# Test case 2: Very small Decimal number
++c2 = Context({'value': Decimal('0.00000000000000000001')})
++print('Test 2 - Small number:', t.render(c2))
++
++# Test case 3: Decimal with many decimal places
++c3 = Context({'value': Decimal('42.123456789012345678901234567890')})
++print('Test 3 - Many decimals:', t.render(c3))
++
++# Test case 4: Negative Decimal number
++c4 = Context({'value': Decimal('-42.12345678901234567890')})
++print('Test 4 - Negative number:', t.render(c4))
++
++print('All tests completed.')
+\ No newline at end of file

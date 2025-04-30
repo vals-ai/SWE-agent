@@ -1,0 +1,63 @@
+diff --git a/sympy/printing/repr.py b/sympy/printing/repr.py
+index c936a692c0..54e792a4bc 100644
+--- a/sympy/printing/repr.py
++++ b/sympy/printing/repr.py
+@@ -7,6 +7,8 @@
+ 
+ from __future__ import print_function, division
+ 
++from sympy.core.numbers import Integer, Float, Rational
++from sympy.utilities.iterables import default_sort_key
+ from typing import Any, Dict
+ 
+ from sympy.core.function import AppliedUndef
+@@ -108,6 +110,8 @@ def _print_FunctionClass(self, expr):
+         else:
+             return expr.__name__
+ 
++
++
+     def _print_Half(self, expr):
+         return 'Rational(1, 2)'
+ 
+@@ -249,6 +253,13 @@ def _print_tuple(self, expr):
+             return "(%s,)" % self._print(expr[0])
+         else:
+             return "(%s)" % self.reprify(expr, ", ")
++    def _print_set(self, expr):
++        items = sorted(expr, key=default_sort_key)
++        return "{%s}" % ", ".join([srepr(item, **self._settings) for item in items])
++    def _print_dict(self, expr):
++        items = sorted(expr.items(), key=lambda item: default_sort_key(item[0]))
++        return "{%s}" % ", ".join(["%s: %s" % (srepr(k, **self._settings), srepr(v, **self._settings))
++                                   for k, v in items])
+ 
+     def _print_WildFunction(self, expr):
+         return "%s('%s')" % (expr.__class__.__name__, expr.name)
+diff --git a/sympy/printing/tests/test_repr.py b/sympy/printing/tests/test_repr.py
+index f749683ff7..5104629d9c 100644
+--- a/sympy/printing/tests/test_repr.py
++++ b/sympy/printing/tests/test_repr.py
+@@ -296,6 +296,22 @@ def test_matrix_expressions():
+     sT(A + B, "MatAdd(MatrixSymbol(Symbol('A'), Symbol('n', integer=True), Symbol('n', integer=True)), MatrixSymbol(Symbol('B'), Symbol('n', integer=True), Symbol('n', integer=True)))")
+ 
+ 
++def test_containers():
++    from sympy.abc import x, y
++    sT([x, y], "[Symbol('x'), Symbol('y')]")
++    sT((x, y), "(Symbol('x'), Symbol('y'))")
++    # Use sorted list for set comparison because order is not guaranteed
++    assert srepr({x, y}) == "{Symbol('x'), Symbol('y')}" or \
++           srepr({x, y}) == "{Symbol('y'), Symbol('x')}"
++    # Use sorted list for dict comparison because order is not guaranteed
++    assert srepr({x: y, y: x}) == "{Symbol('x'): Symbol('y'), Symbol('y'): Symbol('x')}" or \
++           srepr({x: y, y: x}) == "{Symbol('y'): Symbol('x'), Symbol('x'): Symbol('y')}"
++    # Test set with non-Symbol element
++    assert srepr({1, x}) == "{Integer(1), Symbol('x')}" or \
++           srepr({1, x}) == "{Symbol('x'), Integer(1)}"
++    sT({1: x}, "{Integer(1): Symbol('x')}") # Test with non-Symbol key
++
++
+ def test_Cycle():
+     # FIXME: sT fails because Cycle is not immutable and calling srepr(Cycle(1, 2))
+     # adds keys to the Cycle dict (GH-17661)

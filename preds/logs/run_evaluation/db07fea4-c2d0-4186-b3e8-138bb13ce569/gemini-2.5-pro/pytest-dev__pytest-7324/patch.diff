@@ -1,0 +1,22 @@
+diff --git a/src/_pytest/mark/expression.py b/src/_pytest/mark/expression.py
+index 04c73411a..c804843f0 100644
+--- a/src/_pytest/mark/expression.py
++++ b/src/_pytest/mark/expression.py
+@@ -161,7 +161,16 @@ def not_expr(s: Scanner) -> ast.expr:
+         return ret
+     ident = s.accept(TokenType.IDENT)
+     if ident:
+-        return ast.Name(ident.value, ast.Load())
++        # Check if the identifier is a constant like True, False, or None
++        if ident.value in ("True", "False", "None"):
++            # Use ast.Constant for True/False/None, required on Python 3.8+
++            # and works on older versions too.
++            # Note: ast.NameConstant is deprecated in 3.8 and removed in 3.12
++            val = {"True": True, "False": False, "None": None}[ident.value]
++            return ast.Constant(value=val)
++        else:
++            # Otherwise, treat it as a regular name (variable/marker)
++            return ast.Name(ident.value, ast.Load())
+     s.reject((TokenType.NOT, TokenType.LPAREN, TokenType.IDENT))
+ 
+ 

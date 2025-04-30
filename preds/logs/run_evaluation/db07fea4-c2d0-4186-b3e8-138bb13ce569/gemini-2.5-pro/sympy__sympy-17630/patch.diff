@@ -1,0 +1,146 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..5137311265
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,22 @@
++
++from sympy import MatrixSymbol, ZeroMatrix, BlockMatrix, block_collapse, pprint
++
++a = MatrixSymbol("a", 2, 2)
++z = ZeroMatrix(2, 2)
++b = BlockMatrix([[a, z], [z, z]])
++
++print("b:")
++pprint(b)
++
++bb = b * b
++bb_collapsed = block_collapse(bb)
++print("\nb * b:")
++pprint(bb_collapsed)
++print(f"Type of block (0, 1) in b*b: {type(bb_collapsed.blocks[0, 1])}") # Check the type as mentioned in the issue
++
++# The problematic line
++print("\nb * b * b:")
++bbb = b * b * b
++pprint(block_collapse(bbb))
++
++print("\nScript completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/sympy/matrices/expressions/blockmatrix.py b/sympy/matrices/expressions/blockmatrix.py
+index 95302a05ca..4699153f81 100644
+--- a/sympy/matrices/expressions/blockmatrix.py
++++ b/sympy/matrices/expressions/blockmatrix.py
+@@ -1,6 +1,7 @@
+ from __future__ import print_function, division
+ 
+ from sympy import ask, Q
++from sympy import S
+ from sympy.core import Basic, Add
+ from sympy.core.compatibility import range
+ from sympy.strategies import typed, exhaust, condition, do_one, unpack
+@@ -164,7 +165,61 @@ def structurally_equal(self, other):
+     def _blockmul(self, other):
+         if (isinstance(other, BlockMatrix) and
+                 self.colblocksizes == other.rowblocksizes):
+-            return BlockMatrix(self.blocks*other.blocks)
++            # Manual block multiplication to handle ZeroMatrix correctly
++            from sympy.matrices.immutable import ImmutableDenseMatrix # Import needed here
++            new_blocks = []
++            for i in range(self.blockshape[0]):
++                row = []
++                for j in range(other.blockshape[1]):
++                    block_sum = S.Zero # Initialize sum for block C_ij
++                    for k in range(self.blockshape[1]): # Sum over k for C_ij = sum(A_ik * B_kj)
++                        A_ik = self.blocks[i, k]
++                        B_kj = other.blocks[k, j]
++
++                        # Check if either block is ZeroMatrix or scalar 0
++                        is_A_zero = isinstance(A_ik, ZeroMatrix) or A_ik == S.Zero
++                        is_B_zero = isinstance(B_kj, ZeroMatrix) or B_kj == S.Zero
++
++                        if is_A_zero or is_B_zero:
++                            # Resulting block is ZeroMatrix(A_ik.rows, B_kj.cols)
++                            # Need rows from A_ik and cols from B_kj
++                            rows = self.rowblocksizes[i] # Rows of block A_ik
++                            cols = other.colblocksizes[j] # Cols of block B_kj
++                            term = ZeroMatrix(rows, cols)
++                        else:
++                            # Standard multiplication for non-zero blocks
++                            term = A_ik * B_kj
++                            # Evaluate if possible (e.g., MatMul -> result)
++                            if hasattr(term, 'doit'):
++                                term = term.doit()
++
++                        # Add the term to the block sum, handling zeros correctly
++                        if block_sum == S.Zero:
++                            block_sum = term
++                        elif isinstance(term, ZeroMatrix) or term == S.Zero:
++                            pass # Adding zero doesn't change block_sum
++                        elif isinstance(block_sum, ZeroMatrix):
++                            block_sum = term # Replace ZeroMatrix sum with the first non-zero term
++                        else:
++                            # Use MatAdd for symbolic addition, then evaluate
++                            block_sum = MatAdd(block_sum, term, evaluate=False).doit()
++
++                    # After summing all terms for block (i, j):
++                    # Ensure the final block is a MatrixExpr.
++                    # If the sum resulted in S.Zero, convert it back to ZeroMatrix.
++                    if block_sum == S.Zero:
++                        rows = self.rowblocksizes[i] # Rows of block C_ij
++                        cols = other.colblocksizes[j] # Cols of block C_ij
++                        block_sum = ZeroMatrix(rows, cols)
++                    # If block_sum is an expression that evaluates to ZeroMatrix, represent it as ZeroMatrix
++                    # Check is_ZeroMatrix attribute which is present on evaluated matrices
++                    elif getattr(block_sum, 'is_ZeroMatrix', False):
++                        block_sum = ZeroMatrix(block_sum.rows, block_sum.cols)
++
++                    row.append(block_sum)
++                new_blocks.append(row)
++            # Construct the new BlockMatrix from the calculated blocks using ImmutableDenseMatrix
++            return BlockMatrix(ImmutableDenseMatrix(new_blocks))
+ 
+         return self * other
+ 
+diff --git a/sympy/matrices/expressions/tests/test_blockmatrix.py b/sympy/matrices/expressions/tests/test_blockmatrix.py
+index 1e1033affc..50498b7e1e 100644
+--- a/sympy/matrices/expressions/tests/test_blockmatrix.py
++++ b/sympy/matrices/expressions/tests/test_blockmatrix.py
+@@ -212,6 +212,37 @@ def test_deblock():
+ 
+     assert deblock(reblock_2x2(B)) == B
+ 
++def test_block_multiply_zeros():
++    from sympy import MatrixSymbol, ZeroMatrix, BlockMatrix, block_collapse
++    a = MatrixSymbol("a", 2, 2)
++    z = ZeroMatrix(2, 2)
++    b = BlockMatrix([[a, z], [z, z]])
++
++    # Test b * b
++    bb = b * b
++    bb_collapsed = block_collapse(bb)
++    assert isinstance(bb_collapsed, BlockMatrix)
++    assert bb_collapsed.blocks[0, 0] == a**2
++    assert bb_collapsed.blocks[0, 1] == z
++    assert bb_collapsed.blocks[1, 0] == z
++    assert bb_collapsed.blocks[1, 1] == z
++    assert isinstance(bb_collapsed.blocks[0, 1], ZeroMatrix)
++    assert isinstance(bb_collapsed.blocks[1, 0], ZeroMatrix)
++    assert isinstance(bb_collapsed.blocks[1, 1], ZeroMatrix)
++
++    # Test b * b * b
++    bbb = b * b * b
++    bbb_collapsed = block_collapse(bbb)
++    assert isinstance(bbb_collapsed, BlockMatrix)
++    assert bbb_collapsed.blocks[0, 0] == a**3
++    assert bbb_collapsed.blocks[0, 1] == z
++    assert bbb_collapsed.blocks[1, 0] == z
++    assert bbb_collapsed.blocks[1, 1] == z
++    assert isinstance(bbb_collapsed.blocks[0, 1], ZeroMatrix)
++    assert isinstance(bbb_collapsed.blocks[1, 0], ZeroMatrix)
++    assert isinstance(bbb_collapsed.blocks[1, 1], ZeroMatrix)
++
++
+ def test_block_collapse_type():
+     bm1 = BlockDiagMatrix(ImmutableMatrix([1]), ImmutableMatrix([2]))
+     bm2 = BlockDiagMatrix(ImmutableMatrix([3]), ImmutableMatrix([4]))

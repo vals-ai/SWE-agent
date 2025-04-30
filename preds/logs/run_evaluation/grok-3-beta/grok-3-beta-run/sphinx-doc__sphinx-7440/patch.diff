@@ -1,0 +1,7 @@
+diff --git a/phpmyadmin b/phpmyadmin
+new file mode 160000
+index 000000000..a23e1bfe9
+--- /dev/null
++++ b/phpmyadmin
+@@ -0,0 +1 @@
++Subproject commit a23e1bfe9c72a483435d1647ba4487d887518de4

@@ -1,0 +1,70 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..496b1eb92e
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,7 @@
++
++from sympy import Subs, latex
++from sympy.abc import x, y
++
++expr = 3 * Subs(-x + y, (x,), (1,))
++print(latex(expr))
++print("Script completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/sympy/printing/latex.py b/sympy/printing/latex.py
+index 8743723ea0..501288e30a 100644
+--- a/sympy/printing/latex.py
++++ b/sympy/printing/latex.py
+@@ -698,7 +698,7 @@ def _print_Derivative(self, expr):
+ 
+     def _print_Subs(self, subs):
+         expr, old, new = subs.args
+-        latex_expr = self._print(expr)
++        latex_expr = self.parenthesize(expr, PRECEDENCE["Add"])
+         latex_old = (self._print(e) for e in old)
+         latex_new = (self._print(e) for e in new)
+         latex_subs = r'\\ '.join(
+diff --git a/sympy/printing/precedence.py b/sympy/printing/precedence.py
+index 21e3f9c7e5..cf5b785e4c 100644
+--- a/sympy/printing/precedence.py
++++ b/sympy/printing/precedence.py
+@@ -2,6 +2,7 @@
+ 
+ from __future__ import print_function, division
+ 
++from sympy.core.function import Subs
+ from sympy.core.function import _coeff_isneg
+ 
+ # Default precedence values for some basic types
+@@ -37,6 +38,7 @@
+     "Relational": PRECEDENCE["Relational"],
+     "Sub": PRECEDENCE["Add"],
+     "Not": PRECEDENCE["Not"],
++    "Subs": PRECEDENCE["Func"],
+     "Function" : PRECEDENCE["Func"],
+     "NegativeInfinity": PRECEDENCE["Add"],
+     "MatAdd": PRECEDENCE["Add"],
+diff --git a/sympy/printing/tests/test_latex.py b/sympy/printing/tests/test_latex.py
+index 3d387cf052..a4d494a5c0 100644
+--- a/sympy/printing/tests/test_latex.py
++++ b/sympy/printing/tests/test_latex.py
+@@ -673,8 +673,16 @@ def test_latex_derivatives():
+ 
+ 
+ def test_latex_subs():
+-    assert latex(Subs(x*y, (
+-        x, y), (1, 2))) == r'\left. x y \right|_{\substack{ x=1\\ y=2 }}'
++
++    # Test case for parenthesizing Add inside Subs within Mul (Issue #...)
++    assert latex(3*Subs(-x + y, (x,), (1,))) == r'3 \left. \left(- x + y\right) \right|_{\substack{ x=1 }}'
++    # Test case for parenthesizing Add inside Subs
++    assert latex(Subs(-x + y, (x,), (1,))) == r'\left. \left(- x + y\right) \right|_{\substack{ x=1 }}'
++    # Test case for parenthesizing Mul inside Subs
++    assert latex(Subs(x*y, (x,), (1,))) == r'\left. x y \right|_{\substack{ x=1 }}'
++    # Test case for parenthesizing Pow inside Subs
++    assert latex(Subs(x**2, (x,), (1,))) == r'\left. x^{2} \right|_{\substack{ x=1 }}'
++    assert latex(Subs(x*y, (x, y), (1, 2))) == r'\left. x y \right|_{\substack{ x=1\\ y=2 }}'
+ 
+ 
+ def test_latex_integrals():

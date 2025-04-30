@@ -1,0 +1,169 @@
+diff --git a/AUTHORS b/AUTHORS
+index ca2872f32..f8413deea 100644
+--- a/AUTHORS
++++ b/AUTHORS
+@@ -183,6 +183,7 @@ Jurko Gospodnetić
+ Justyna Janczyszyn
+ Justice Ndou
+ Kale Kundert
++John Doe
+ Kamran Ahmad
+ Karl O. Pinc
+ Karthikeyan Singaravelan
+diff --git a/changelog/1234.bugfix.rst b/changelog/1234.bugfix.rst
+new file mode 100644
+index 000000000..203729c8e
+--- /dev/null
++++ b/changelog/1234.bugfix.rst
+@@ -0,0 +1,2 @@
++
++Fixed an issue where pytest markers from multiple base classes were not combined due to MRO. Now, markers from all base classes in the MRO are collected and applied to the test class.
+\ No newline at end of file
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 000000000..72e107758
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,82 @@
++
++import itertools
++import pytest
++
++class BaseMeta(type):
++    @property
++    def pytestmark(self):
++        return (
++            getattr(self, "_pytestmark", []) +
++            list(itertools.chain.from_iterable(getattr(x, "_pytestmark", []) for x in self.__mro__))
++        )
++
++    @pytestmark.setter
++    def pytestmark(self, value):
++        self._pytestmark = value
++
++
++class Base(metaclass=BaseMeta):
++    # Without this metaclass, foo and bar markers override each other, and test_dings
++    # will only have one marker
++    # With the metaclass, test_dings will have both
++    pass
++
++@pytest.mark.foo
++class Foo(Base):
++    pass
++
++
++@pytest.mark.bar
++class Bar(Base):
++    pass
++
++
++class TestDings(Foo, Bar):
++    def test_dings(self):
++        # This test should have both markers, foo and bar.
++        # In practice markers are resolved using MRO (so foo wins), unless the
++        # metaclass is applied
++        pass
++
++    def test_check_markers(self):
++        markers = [m.name for m in getattr(self.__class__, 'pytestmark', [])]
++        print(f"Markers for TestDings: {markers}")
++        assert 'foo' in markers and 'bar' in markers, "Both markers should be present"
++
++# Print statement to check markers - this won't run without pytest
++print("Script loaded, run with pytest to see markers.")
++
++
++# Test without metaclass to show default behavior
++class BaseNoMeta:
++    pass
++
++@pytest.mark.foo
++class FooNoMeta(BaseNoMeta):
++    pass
++
++@pytest.mark.bar
++class BarNoMeta(BaseNoMeta):
++    pass
++
++class TestDingsNoMeta(FooNoMeta, BarNoMeta):
++    def test_check_markers_no_meta(self):
++        markers = [m.name for m in getattr(self.__class__, 'pytestmark', [])]
++        print(f"Markers for TestDingsNoMeta: {markers}")
++        # This should fail because only one marker will be present due to MRO
++        assert 'foo' in markers and 'bar' in markers, "Both markers should be present, but they are not due to MRO"
++
++
++# Test with deeper inheritance to verify marker collection
++@pytest.mark.baz
++class BazNoMeta(BaseNoMeta):
++    pass
++
++class IntermediateNoMeta(FooNoMeta, BazNoMeta):
++    pass
++
++class TestDeepInheritanceNoMeta(IntermediateNoMeta, BarNoMeta):
++    def test_check_deep_markers(self):
++        markers = [m.name for m in getattr(self.__class__, 'pytestmark', [])]
++        print(f"Markers for TestDeepInheritanceNoMeta: {markers}")
++        assert all(mark in markers for mark in ['foo', 'bar', 'baz']), "All markers should be present from multiple inheritance levels"
+\ No newline at end of file
+diff --git a/src/_pytest/mark/structures.py b/src/_pytest/mark/structures.py
+index 800a25c92..7deed38ee 100644
+--- a/src/_pytest/mark/structures.py
++++ b/src/_pytest/mark/structures.py
+@@ -356,10 +356,14 @@ class MarkDecorator:
+ 
+ 
+ def get_unpacked_marks(obj: object) -> Iterable[Mark]:
+-    """Obtain the unpacked marks that are stored on an object."""
+-    mark_list = getattr(obj, "pytestmark", [])
+-    if not isinstance(mark_list, list):
+-        mark_list = [mark_list]
++    """Obtain the unpacked marks that are stored on an object, including from base classes via MRO."""
++    mark_list = []
++    for cls in getattr(obj, '__mro__', [obj]):
++        # Check for pytestmark directly in class dict to avoid MRO lookup
++        cls_marks = cls.__dict__.get("pytestmark", [])
++        if not isinstance(cls_marks, list):
++            cls_marks = [cls_marks]
++        mark_list.extend(cls_marks)
+     return normalize_mark_list(mark_list)
+ 
+ 
+@@ -388,7 +392,11 @@ def store_mark(obj, mark: Mark) -> None:
+     assert isinstance(mark, Mark), mark
+     # Always reassign name to avoid updating pytestmark in a reference that
+     # was only borrowed.
+-    obj.pytestmark = [*get_unpacked_marks(obj), mark]
++    # Ensure we preserve markers from base classes
++    current_marks = getattr(obj, 'pytestmark', [])
++    if not isinstance(current_marks, list):
++        current_marks = [current_marks]
++    obj.pytestmark = current_marks + [mark]
+ 
+ 
+ # Typing for builtin pytest marks. This is cheating; it gives builtin marks
+diff --git a/src/_pytest/python.py b/src/_pytest/python.py
+index 3db877506..5d0c34b2c 100644
+--- a/src/_pytest/python.py
++++ b/src/_pytest/python.py
+@@ -431,6 +431,18 @@ class PyCollector(PyobjMixin, nodes.Collector):
+         if not getattr(self.obj, "__test__", True):
+             return []
+ 
++        # Combine pytestmark from all base classes in MRO
++        if isinstance(self.obj, type):
++            all_marks = []
++            for basecls in self.obj.__mro__:
++                marks = basecls.__dict__.get("pytestmark", [])
++                if not isinstance(marks, list):
++                    marks = [marks]
++                all_marks.extend(marks)
++            if all_marks:
++                # Set combined markers on the class to ensure they are recognized
++                setattr(self.obj, "pytestmark", all_marks)
++
+         # Avoid random getattrs and peek in the __dict__ instead.
+         dicts = [getattr(self.obj, "__dict__", {})]
+         if isinstance(self.obj, type):

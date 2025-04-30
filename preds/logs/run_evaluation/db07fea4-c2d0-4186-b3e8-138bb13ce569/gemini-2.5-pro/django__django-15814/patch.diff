@@ -1,0 +1,71 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 461e1ae156..009858e916 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -838,7 +838,7 @@ class SQLCompiler:
+                 # parent model data is already present in the SELECT clause,
+                 # and we want to avoid reloading the same data again.
+                 continue
+-            if field.model in only_load and field.attname not in only_load[field.model]:
++            if not field.primary_key and field.model in only_load and field.attname not in only_load[field.model]:
+                 continue
+             alias = self.query.join_parent_model(opts, model, start_alias, seen_models)
+             column = field.get_col(alias)
+diff --git a/tests/proxy_models/tests.py b/tests/proxy_models/tests.py
+index f2f465678b..39097a5f5c 100644
+--- a/tests/proxy_models/tests.py
++++ b/tests/proxy_models/tests.py
+@@ -35,6 +35,22 @@ from .models import (
+     UserProxyProxy,
+ )
+ 
++# Models for select_related/only test (#33731)
++class CustomModel(models.Model):
++    name = models.CharField(max_length=16)
++
++class ProxyCustomModel(CustomModel):
++    class Meta:
++        proxy = True
++
++class AnotherModel(models.Model):
++    custom = models.ForeignKey(
++        ProxyCustomModel,
++        on_delete=models.SET_NULL,
++        null=True,
++        blank=True,
++    )
++
+ 
+ class ProxyModelTests(TestCase):
+     def test_same_manager_queries(self):
+@@ -399,6 +415,30 @@ class ProxyModelTests(TestCase):
+         self.assertEqual(MyPerson(id=100), Person(id=100))
+ 
+ 
++    def test_select_related_only_proxy_foreign_key(self):
++        """Test select_related() and only() with a proxy FK target (#33731)."""
++        cm = CustomModel.objects.create(name="TestName")
++        AnotherModel.objects.create(custom=cm)
++        # Before the fix, this query raised ValueError: 'id' is not in list
++        objs = list(AnotherModel.objects.select_related("custom").only("custom__name"))
++        self.assertEqual(len(objs), 1)
++        # Check that the related object is populated and only has 'name'
++        # (and the implicitly added 'pk')
++        related_obj = objs[0].custom
++        self.assertEqual(related_obj.name, "TestName")
++        # Accessing the PK should work
++        self.assertEqual(related_obj.pk, cm.pk)
++
++
++        # Re-fetch ensuring 'id' is deferred
++        objs = list(AnotherModel.objects.select_related("custom").only("custom__name"))
++        related_obj = objs[0].custom
++        # Check deferral more reliably
++        deferred_fields = related_obj.get_deferred_fields()
++
++        self.assertNotIn("name", deferred_fields)
++
++
+ @override_settings(ROOT_URLCONF="proxy_models.urls")
+ class ProxyModelAdminTests(TestCase):
+     @classmethod

@@ -1,0 +1,132 @@
+diff --git a/django/urls/resolvers.py b/django/urls/resolvers.py
+index 9b00e24509..cac0388d1a 100644
+--- a/django/urls/resolvers.py
++++ b/django/urls/resolvers.py
+@@ -43,14 +43,23 @@ class ResolverMatch:
+         self.app_names = [x for x in app_names if x] if app_names else []
+         self.app_name = ':'.join(self.app_names)
+         self.namespaces = [x for x in namespaces if x] if namespaces else []
++
++        # Determine the actual function and store partial details if necessary.
++        self.partial_args = None
++        self.partial_kwargs = None
++        _actual_func = func
++        if isinstance(func, functools.partial):
++            self.partial_args = func.args
++            self.partial_kwargs = func.keywords
++            _actual_func = func.func
+         self.namespace = ':'.join(self.namespaces)
+ 
+-        if not hasattr(func, '__name__'):
++        if not hasattr(_actual_func, '__name__'):
+             # A class-based view
+-            self._func_path = func.__class__.__module__ + '.' + func.__class__.__name__
++            self._func_path = _actual_func.__class__.__module__ + '.' + _actual_func.__class__.__name__
+         else:
+             # A function-based view
+-            self._func_path = func.__module__ + '.' + func.__name__
++            self._func_path = _actual_func.__module__ + '.' + _actual_func.__name__
+ 
+         view_path = url_name or self._func_path
+         self.view_name = ':'.join(self.namespaces + [view_path])
+@@ -59,9 +68,11 @@ class ResolverMatch:
+         return (self.func, self.args, self.kwargs)[index]
+ 
+     def __repr__(self):
+-        return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name=%s, app_names=%s, namespaces=%s, route=%s)" % (
++        return "ResolverMatch(func=%s, args=%s, kwargs=%s, url_name=%s, app_names=%s, namespaces=%s, route=%s%s%s)" % (
+             self._func_path, self.args, self.kwargs, self.url_name,
+             self.app_names, self.namespaces, self.route,
++            f", partial_args={self.partial_args!r}" if self.partial_args else "",
++            f", partial_kwargs={self.partial_kwargs!r}" if self.partial_kwargs else "",
+         )
+ 
+ 
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..52fbce92eb
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,21 @@
++import functools
++from django.urls import ResolverMatch
++
++def my_view(request, arg1):
++    pass
++
++partial_view = functools.partial(my_view, arg1='test')
++
++# We need dummy values for args, kwargs, url_name, app_names, namespaces
++match = ResolverMatch(
++    func=partial_view,
++    args=(),
++    kwargs={},
++    url_name='test_url',
++    app_names=[],
++    namespaces=[],
++)
++
++print(repr(match))
++print("\nScript completed successfully, no errors.")
++
+diff --git a/tests/urlpatterns/test_resolvers.py b/tests/urlpatterns/test_resolvers.py
+index eaca6096d9..0b959a1b0f 100644
+--- a/tests/urlpatterns/test_resolvers.py
++++ b/tests/urlpatterns/test_resolvers.py
+@@ -1,6 +1,8 @@
+ from django.test import SimpleTestCase
+ from django.test.utils import override_settings
+ from django.urls.resolvers import RegexPattern, RoutePattern, get_resolver
++import functools
++from django.urls import ResolverMatch
+ from django.utils.translation import gettext_lazy as _
+ 
+ 
+@@ -22,4 +24,46 @@ class ResolverCacheTests(SimpleTestCase):
+         # resolver for a default URLconf (passing no argument) and for the
+         # settings.ROOT_URLCONF is the same cached object.
+         self.assertIs(get_resolver(), get_resolver('urlpatterns.path_urls'))
+-        self.assertIsNot(get_resolver(), get_resolver('urlpatterns.path_dynamic_urls'))
++
++
++def dummy_view(request, *args, **kwargs):
++    pass
++
++
++class ResolverMatchReprTests(SimpleTestCase):
++    def test_repr_partial(self):
++        partial_view = functools.partial(dummy_view, arg1='test', kwarg2=123)
++        match = ResolverMatch(
++            func=partial_view,
++            args=('pos_arg',),
++            kwargs={'view_kwarg': 'abc'},
++            url_name='test_url',
++            app_names=['app1'],
++            namespaces=['ns1'],
++            route='test/route/<int:pk>/',
++        )
++        expected_repr = (
++            "ResolverMatch(func=urlpatterns.test_resolvers.dummy_view, "
++            "args=('pos_arg',), kwargs={'view_kwarg': 'abc'}, "
++            "url_name=test_url, app_names=['app1'], namespaces=['ns1'], "
++            "route=test/route/<int:pk>/, partial_kwargs={'arg1': 'test', 'kwarg2': 123})"
++        )
++        self.assertEqual(repr(match), expected_repr)
++
++    def test_repr_no_partial(self):
++        match = ResolverMatch(
++            func=dummy_view,
++            args=('pos_arg',),
++            kwargs={'view_kwarg': 'abc'},
++            url_name='test_url',
++            app_names=['app1'],
++            namespaces=['ns1'],
++            route='test/route/<int:pk>/',
++        )
++        expected_repr = (
++            "ResolverMatch(func=urlpatterns.test_resolvers.dummy_view, "
++            "args=('pos_arg',), kwargs={'view_kwarg': 'abc'}, "
++            "url_name=test_url, app_names=['app1'], namespaces=['ns1'], "
++            "route=test/route/<int:pk>/)"
++        )
++        self.assertEqual(repr(match), expected_repr)

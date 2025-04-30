@@ -1,0 +1,20 @@
+diff --git a/sklearn/metrics/cluster/supervised.py b/sklearn/metrics/cluster/supervised.py
+index a987778ae..d5387a09e 100644
+--- a/sklearn/metrics/cluster/supervised.py
++++ b/sklearn/metrics/cluster/supervised.py
+@@ -856,7 +856,14 @@ def fowlkes_mallows_score(labels_true, labels_pred, sparse=False):
+     tk = np.dot(c.data, c.data) - n_samples
+     pk = np.sum(np.asarray(c.sum(axis=0)).ravel() ** 2) - n_samples
+     qk = np.sum(np.asarray(c.sum(axis=1)).ravel() ** 2) - n_samples
+-    return tk / np.sqrt(pk * qk) if tk != 0. else 0.
++    if tk == 0.0:
++        return 0.0
++    # tk is non-zero, calculate score avoiding overflow
++    pk_f = np.float64(pk)
++    qk_f = np.float64(qk)
++    denominator = np.sqrt(pk_f * qk_f)
++    # If tk != 0, pk > 0 and qk > 0, so denominator > 0.
++    return tk / denominator
+ 
+ 
+ def entropy(labels):

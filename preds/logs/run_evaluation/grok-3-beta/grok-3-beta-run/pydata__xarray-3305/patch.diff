@@ -1,0 +1,34 @@
+diff --git a/reproduce_quantile_attrs.py b/reproduce_quantile_attrs.py
+new file mode 100644
+index 00000000..3504f34a
+--- /dev/null
++++ b/reproduce_quantile_attrs.py
+@@ -0,0 +1,6 @@
++
++import xarray as xr
++
++da = xr.DataArray([0, 0], dims="x", attrs={'units':'K'})
++out = da.quantile(.9, dim='x', keep_attrs=True)
++print(out.attrs)
+\ No newline at end of file
+diff --git a/xarray/core/dataarray.py b/xarray/core/dataarray.py
+index 807badde..1a043b3d 100644
+--- a/xarray/core/dataarray.py
++++ b/xarray/core/dataarray.py
+@@ -423,11 +423,14 @@ class DataArray(AbstractArray, DataWithCoords):
+         return self._to_dataset_whole(name=_THIS_ARRAY, shallow_copy=False)
+ 
+     def _from_temp_dataset(
+-        self, dataset: Dataset, name: Hashable = __default
++        self, dataset: Dataset, name: Hashable = __default, keep_attrs: bool = None
+     ) -> "DataArray":
+         variable = dataset._variables.pop(_THIS_ARRAY)
+         coords = dataset._variables
+-        return self._replace(variable, coords, name)
++        new_da = self._replace(variable, coords, name)
++        if keep_attrs:
++            new_da.attrs = self.attrs
++        return new_da
+ 
+     def _to_dataset_split(self, dim: Hashable) -> Dataset:
+         def subset(dim, label):

@@ -1,0 +1,104 @@
+diff --git a/sympy/core/power.py b/sympy/core/power.py
+index 02ec6480cb..22110848d2 100644
+--- a/sympy/core/power.py
++++ b/sympy/core/power.py
+@@ -824,10 +824,28 @@ def _eval_expand_power_exp(self, **hints):
+ 
+     def _eval_expand_power_base(self, **hints):
+         """(a*b)**n -> a**n * b**n"""
++        # Handle TensorProduct expansion hint
++        if hints.get('tensorproduct', False):
++            from sympy.physics.quantum import TensorProduct # Lazy import
++            base = self.base
++            exp = self.exp
++            if isinstance(base, TensorProduct):
++                # Distribute power over TensorProduct arguments
++                new_args = [arg**exp for arg in base.args]
++                # Create the new TensorProduct and expand its args further if needed
++                # Pass deep=hints.get('deep', True) to control recursion
++                deep = hints.get('deep', True)
++                # We need to expand the arguments *after* applying the power
++                # and before creating the final TensorProduct.
++                # Also, we should re-apply tensorproduct hint if needed for nested TPs.
++                expanded_args = [a.expand(deep=deep, **hints) for a in new_args]
++                return TensorProduct(*expanded_args)
++            # If not a TensorProduct base, fall through to normal Mul expansion
++
+         force = hints.get('force', False)
+ 
+-        b = self.base
+         e = self.exp
++        b = self.base
+         if not b.is_Mul:
+             return self
+ 
+diff --git a/sympy/physics/quantum/tensorproduct.py b/sympy/physics/quantum/tensorproduct.py
+index 9dd10d219e..fb95af0948 100644
+--- a/sympy/physics/quantum/tensorproduct.py
++++ b/sympy/physics/quantum/tensorproduct.py
+@@ -239,23 +239,36 @@ def doit(self, **hints):
+         return TensorProduct(*[item.doit(**hints) for item in self.args])
+ 
+     def _eval_expand_tensorproduct(self, **hints):
+-        """Distribute TensorProducts across addition."""
+-        args = self.args
++        """Distribute TensorProducts across addition and powers."""
++        # Extract deep hint, default to True if not present
++        deep = hints.get('deep', True)
++
++        # Expand powers within arguments first
++        # Pass only 'deep' hint to the recursive expand call
++        new_args = [arg.expand(power_base=True, deep=deep) for arg in self.args]
++
++        # Check if any argument actually changed
++        if new_args != list(self.args):
++            # If args changed due to power expansion, create a new TP and expand it
++            # Pass only 'deep' hint to the recursive expand call
++            return TensorProduct(*new_args).expand(tensorproduct=True, deep=deep)
++
++        # If no power expansion happened, proceed with Add distribution
++        args = new_args # Use the (unchanged in this case) args
+         add_args = []
+-        stop = False
+         for i in range(len(args)):
+             if isinstance(args[i], Add):
++                # Found an Add, distribute and return
+                 for aa in args[i].args:
+-                    tp = TensorProduct(*args[:i] + (aa,) + args[i + 1:])
+-                    if isinstance(tp, TensorProduct):
+-                        tp = tp._eval_expand_tensorproduct()
++                    tp_args = args[:i] + (aa,) + args[i + 1:]
++                    # Recursively expand the new TensorProduct
++                    # Pass only 'deep' hint to the recursive expand call
++                    tp = TensorProduct(*tp_args).expand(tensorproduct=True, deep=deep)
+                     add_args.append(tp)
+-                break
++                return Add(*add_args) # Return the distributed sum
+ 
+-        if add_args:
+-            return Add(*add_args)
+-        else:
+-            return self
++        # No power expansion occurred, and no Add was found for distribution
++        return self
+ 
+     def _eval_trace(self, **kwargs):
+         indices = kwargs.get('indices', None)
+@@ -382,7 +395,16 @@ def tensor_product_simp(e, **hints):
+     if isinstance(e, Add):
+         return Add(*[tensor_product_simp(arg) for arg in e.args])
+     elif isinstance(e, Pow):
+-        return tensor_product_simp(e.base) ** e.exp
++        base = e.base
++        exp = e.exp
++        if isinstance(base, TensorProduct):
++            # Distribute the power to the arguments
++            new_args = [tensor_product_simp(arg**exp) for arg in base.args]
++            # Create the new TensorProduct and simplify it
++            return tensor_product_simp(TensorProduct(*new_args))
++        else:
++            # Original logic for non-TensorProduct bases
++            return tensor_product_simp(base) ** exp
+     elif isinstance(e, Mul):
+         return tensor_product_simp_Mul(e)
+     elif isinstance(e, Commutator):

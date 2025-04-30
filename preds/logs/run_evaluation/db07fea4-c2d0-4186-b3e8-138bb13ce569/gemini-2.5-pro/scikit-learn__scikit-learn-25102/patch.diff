@@ -1,0 +1,89 @@
+diff --git a/sklearn/utils/_set_output.py b/sklearn/utils/_set_output.py
+index 335773c6a..76e4e7350 100644
+--- a/sklearn/utils/_set_output.py
++++ b/sklearn/utils/_set_output.py
+@@ -12,6 +12,7 @@ def _wrap_in_pandas_container(
+     *,
+     columns,
+     index=None,
++    original_dtypes=None,
+ ):
+     """Create a Pandas DataFrame.
+ 
+@@ -59,7 +60,15 @@ def _wrap_in_pandas_container(
+             data_to_wrap.index = index
+         return data_to_wrap
+ 
+-    return pd.DataFrame(data_to_wrap, index=index, columns=columns)
++    # Create DataFrame from non-DataFrame input
++    df = pd.DataFrame(data_to_wrap, index=index, columns=columns)
++    # Apply original dtypes if available and applicable
++    if original_dtypes is not None:
++        common_cols = original_dtypes.index.intersection(df.columns)
++        if common_cols.any():
++            dtypes_to_apply = original_dtypes.loc[common_cols]
++            df = df.astype(dtypes_to_apply, copy=False)
++    return df
+ 
+ 
+ def _get_output_config(method, estimator=None):
+@@ -131,6 +140,7 @@ def _wrap_data_with_container(method, data_to_wrap, original_input, estimator):
+         data_to_wrap=data_to_wrap,
+         index=getattr(original_input, "index", None),
+         columns=estimator.get_feature_names_out,
++        original_dtypes=getattr(original_input, "dtypes", None),
+     )
+ 
+ 
+diff --git a/sklearn/utils/tests/test_set_output.py b/sklearn/utils/tests/test_set_output.py
+index ac73ca094..316b79f44 100644
+--- a/sklearn/utils/tests/test_set_output.py
++++ b/sklearn/utils/tests/test_set_output.py
+@@ -44,6 +44,47 @@ def test__wrap_in_pandas_container_error_validation():
+     with pytest.raises(ValueError, match=match):
+         _wrap_in_pandas_container(X_csr, columns=["a", "b", "c"])
+ 
++def test_wrap_in_pandas_container_preserves_dtypes():
++    """Check that _wrap_in_pandas_container preserves dtypes of input."""
++    pd = pytest.importorskip("pandas")
++    X_df = pd.DataFrame(
++        {"a": [1, 2, 3], "b": [1.1, 2.2, 3.3], "c": ["x", "y", "z"]}
++    )
++    X_df = X_df.astype({"a": np.int8, "b": np.float32, "c": "category"})
++    original_dtypes = X_df.dtypes
++
++    # Simulate selecting columns "a" and "c"
++    X_selected = X_df[["a", "c"]].values
++    selected_columns = ["a", "c"]
++
++    # Wrap the selected data
++    new_df = _wrap_in_pandas_container(
++        X_selected,
++        columns=selected_columns,
++        index=X_df.index,
++        original_dtypes=original_dtypes,
++    )
++
++    # Check dtypes in the output
++    assert new_df["a"].dtype == np.int8
++    assert new_df["c"].dtype == "category"
++    assert "b" not in new_df.columns
++
++    # Check case where output columns are not in original dtypes (e.g., PCA)
++    # In this case, dtypes should not be forced
++    X_transformed = np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]])
++    transformed_columns = ["pca1", "pca2"]
++    new_df_transformed = _wrap_in_pandas_container(
++        X_transformed,
++        columns=transformed_columns,
++        index=X_df.index,
++        original_dtypes=original_dtypes,
++    )
++    # Dtypes should be default float64, not forced from original
++    assert new_df_transformed["pca1"].dtype == np.float64
++    assert new_df_transformed["pca2"].dtype == np.float64
++
++
+ 
+ class EstimatorWithoutSetOutputAndWithoutTransform:
+     pass

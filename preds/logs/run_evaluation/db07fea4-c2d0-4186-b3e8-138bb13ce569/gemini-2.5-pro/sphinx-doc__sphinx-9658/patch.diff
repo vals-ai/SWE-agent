@@ -1,0 +1,34 @@
+diff --git a/sphinx/util/typing.py b/sphinx/util/typing.py
+index 87707d48f..101396f7a 100644
+--- a/sphinx/util/typing.py
++++ b/sphinx/util/typing.py
+@@ -192,10 +192,25 @@ def _restify_py37(cls: Optional[Type]) -> str:
+     elif isinstance(cls, typing._SpecialForm):
+         return ':py:obj:`~%s.%s`' % (cls.__module__, cls._name)
+     elif hasattr(cls, '__qualname__'):
+-        if cls.__module__ == 'typing':
+-            return ':py:class:`~%s.%s`' % (cls.__module__, cls.__qualname__)
+-        else:
+-            return ':py:class:`%s.%s`' % (cls.__module__, cls.__qualname__)
++        # Check if module and qualname are valid strings
++        module = getattr(cls, '__module__', None)
++        qualname = getattr(cls, '__qualname__', None)
++        if isinstance(module, str) and isinstance(qualname, str):
++            if module == 'typing':
++                return ':py:class:`~%s.%s`' % (module, qualname)
++            else:
++                # Ensure qualname doesn't already contain the module
++                if qualname.startswith(module + '.'):
++                    return ':py:class:`%s`' % qualname
++                else:
++                    return ':py:class:`%s.%s`' % (module, qualname)
++        # Fallback if attributes are missing or not strings
++        elif hasattr(cls, '__name__'):
++            # Try using __name__ as a fallback
++            name = getattr(cls, '__name__', None)
++            module = getattr(cls, '__module__', None) # Re-fetch module
++            if isinstance(module, str) and isinstance(name, str):
++                return ':py:class:`%s.%s`' % (module, name)
+     elif isinstance(cls, ForwardRef):
+         return ':py:class:`%s`' % cls.__forward_arg__
+     else:
