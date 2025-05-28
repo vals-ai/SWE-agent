@@ -421,7 +421,7 @@ class RunBatch:
 
     def should_skip(self, instance: BatchInstance) -> bool:
         """Check if we should skip this instance"""
-        self.logger.info("entering") 
+        self.logger.info("entering")
         if self._redo_existing:
             return False
 
@@ -439,6 +439,9 @@ class RunBatch:
         )
 
         if not log_path.exists() and not pred_path.exists():
+            return False
+
+        if not pred_path.exists():
             return False
 
         pred_content = pred_path.read_text()
