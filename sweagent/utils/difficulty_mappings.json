@@ -1,0 +1,715 @@
+[
+  { "instance_id": "astropy__astropy-12907", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-13033", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-13236", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-13398", "difficulty": "1-4 hours" },
+  { "instance_id": "astropy__astropy-13453", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-13579", "difficulty": "1-4 hours" },
+  { "instance_id": "astropy__astropy-13977", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-14096", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-14182", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-14309", "difficulty": "<15 min fix" },
+  { "instance_id": "astropy__astropy-14365", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-14369", "difficulty": "1-4 hours" },
+  { "instance_id": "astropy__astropy-14508", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-14539", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-14598", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-14995", "difficulty": "<15 min fix" },
+  { "instance_id": "astropy__astropy-7166", "difficulty": "<15 min fix" },
+  { "instance_id": "astropy__astropy-7336", "difficulty": "<15 min fix" },
+  { "instance_id": "astropy__astropy-7606", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-7671", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-8707", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "astropy__astropy-8872", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-10097", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-10554", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-10880", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-10914", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-10973", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-10999", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11066", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11087", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11095", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11099", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11119", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11133", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11138", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-11141", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11149", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11163", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11179", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11206", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11211", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11239", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11265", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11276", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11292", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11299", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11333", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11400", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-11433", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11451", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11477", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11490", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11532", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11551", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11555", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11603", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11728", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11734", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11740", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11749", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11790", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11815", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11820", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11848", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-11880", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11885", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-11951", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11964", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-11999", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-12039", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-12050", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-12125", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-12143", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-12155", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-12193", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-12209", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-12262", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-12273", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-12276", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-12304", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-12308", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-12325", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-12406", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-12419", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-12663", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-12708", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-12713", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-12741", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-12754", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-12774", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-12858", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-12965", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13012", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13023", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13028", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13033", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13089", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13109", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13112", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13121", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13128", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-13158", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13195", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13212", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-13279", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13297", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13315", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13343", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13344", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-13346", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13363", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13401", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13406", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13410", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13417", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13449", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-13512", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13513", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13516", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13551", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13568", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13569", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13590", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13658", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13670", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13741", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13786", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13794", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13807", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13809", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13810", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13820", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13821", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13837", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-13925", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-13933", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-13964", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14007", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-14011", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-14017", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14034", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14053", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14089", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14122", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14140", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14155", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14170", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14238", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14311", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14315", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14349", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14351", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14373", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14376", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14404", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14434", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14493", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14500", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14534", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14539", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14559", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14580", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14608", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14631", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-14672", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14725", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14752", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14765", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14771", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-14787", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14792", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14855", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14915", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-14999", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15022", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15037", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15098", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15103", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15104", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15127", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15128", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-15161", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15252", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15268", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-15277", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15278", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15280", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15315", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15368", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15375", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15380", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15382", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15467", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15499", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15503", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-15525", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15554", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15561", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15563", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15569", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15572", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15629", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-15695", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15731", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15732", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15741", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15814", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15851", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15863", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15916", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15930", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-15957", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-15973", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-15987", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-16032", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16082", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16100", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-16116", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-16136", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16139", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-16145", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-16255", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-16256", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16263", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-16315", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16333", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-16429", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-16454", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16485", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16493", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16502", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16527", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16560", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-16569", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-16595", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-16612", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16631", "difficulty": "1-4 hours" },
+  { "instance_id": "django__django-16642", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-16661", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16662", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16667", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16801", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-16819", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16877", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16899", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-16901", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16938", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-16950", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-17029", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-17084", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-17087", "difficulty": "<15 min fix" },
+  { "instance_id": "django__django-7530", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "django__django-9296", "difficulty": "<15 min fix" },
+  {
+    "instance_id": "matplotlib__matplotlib-13989",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-14623",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-20488",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-20676",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-20826",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-20859",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-21568",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-22719",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-22865",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-22871",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-23299",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-23314",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-23412",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-23476",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-24026",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-24149",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-24177",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-24570",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-24627",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-24637",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-24870",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-24970",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-25122",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-25287",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-25311",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-25332",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-25479",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-25775",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-25960",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-26113",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-26208",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-26291",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-26342",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "matplotlib__matplotlib-26466",
+    "difficulty": "15 min - 1 hour"
+  },
+  { "instance_id": "mwaskom__seaborn-3069", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "mwaskom__seaborn-3187", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pallets__flask-5014", "difficulty": "<15 min fix" },
+  { "instance_id": "psf__requests-1142", "difficulty": "<15 min fix" },
+  { "instance_id": "psf__requests-1724", "difficulty": "<15 min fix" },
+  { "instance_id": "psf__requests-1766", "difficulty": "<15 min fix" },
+  { "instance_id": "psf__requests-1921", "difficulty": "<15 min fix" },
+  { "instance_id": "psf__requests-2317", "difficulty": "<15 min fix" },
+  { "instance_id": "psf__requests-2931", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "psf__requests-5414", "difficulty": "<15 min fix" },
+  { "instance_id": "psf__requests-6028", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-2905", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-3095", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-3151", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-3305", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-3677", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-3993", "difficulty": "1-4 hours" },
+  { "instance_id": "pydata__xarray-4075", "difficulty": "<15 min fix" },
+  { "instance_id": "pydata__xarray-4094", "difficulty": "<15 min fix" },
+  { "instance_id": "pydata__xarray-4356", "difficulty": "<15 min fix" },
+  { "instance_id": "pydata__xarray-4629", "difficulty": "<15 min fix" },
+  { "instance_id": "pydata__xarray-4687", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-4695", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-4966", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-6461", "difficulty": "<15 min fix" },
+  { "instance_id": "pydata__xarray-6599", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-6721", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-6744", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-6938", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-6992", "difficulty": ">4 hours" },
+  { "instance_id": "pydata__xarray-7229", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-7233", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pydata__xarray-7393", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pylint-dev__pylint-4551", "difficulty": "1-4 hours" },
+  { "instance_id": "pylint-dev__pylint-4604", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pylint-dev__pylint-4661", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pylint-dev__pylint-4970", "difficulty": "<15 min fix" },
+  { "instance_id": "pylint-dev__pylint-6386", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pylint-dev__pylint-6528", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pylint-dev__pylint-6903", "difficulty": "<15 min fix" },
+  { "instance_id": "pylint-dev__pylint-7080", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pylint-dev__pylint-7277", "difficulty": "<15 min fix" },
+  { "instance_id": "pylint-dev__pylint-8898", "difficulty": "1-4 hours" },
+  {
+    "instance_id": "pytest-dev__pytest-10051",
+    "difficulty": "15 min - 1 hour"
+  },
+  { "instance_id": "pytest-dev__pytest-10081", "difficulty": "<15 min fix" },
+  { "instance_id": "pytest-dev__pytest-10356", "difficulty": "1-4 hours" },
+  { "instance_id": "pytest-dev__pytest-5262", "difficulty": "<15 min fix" },
+  { "instance_id": "pytest-dev__pytest-5631", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pytest-dev__pytest-5787", "difficulty": "1-4 hours" },
+  { "instance_id": "pytest-dev__pytest-5809", "difficulty": "<15 min fix" },
+  { "instance_id": "pytest-dev__pytest-5840", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pytest-dev__pytest-6197", "difficulty": "1-4 hours" },
+  { "instance_id": "pytest-dev__pytest-6202", "difficulty": "<15 min fix" },
+  { "instance_id": "pytest-dev__pytest-7205", "difficulty": "<15 min fix" },
+  { "instance_id": "pytest-dev__pytest-7236", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pytest-dev__pytest-7324", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pytest-dev__pytest-7432", "difficulty": "<15 min fix" },
+  { "instance_id": "pytest-dev__pytest-7490", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pytest-dev__pytest-7521", "difficulty": "<15 min fix" },
+  { "instance_id": "pytest-dev__pytest-7571", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "pytest-dev__pytest-7982", "difficulty": "<15 min fix" },
+  { "instance_id": "pytest-dev__pytest-8399", "difficulty": "15 min - 1 hour" },
+  {
+    "instance_id": "scikit-learn__scikit-learn-10297",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-10844",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-10908",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-11310",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-11578",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-12585",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-12682",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-12973",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-13124",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-13135",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-13142",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-13328",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-13439",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-13496",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-13779",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-14053",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-14087",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-14141",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-14496",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-14629",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-14710",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-14894",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-14983",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-15100",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-25102",
+    "difficulty": "1-4 hours"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-25232",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-25747",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-25931",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-25973",
+    "difficulty": "<15 min fix"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-26194",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-26323",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "scikit-learn__scikit-learn-9288",
+    "difficulty": "15 min - 1 hour"
+  },
+  { "instance_id": "sphinx-doc__sphinx-10323", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-10435", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-10449", "difficulty": "<15 min fix" },
+  {
+    "instance_id": "sphinx-doc__sphinx-10466",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "sphinx-doc__sphinx-10614",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "sphinx-doc__sphinx-10673",
+    "difficulty": "15 min - 1 hour"
+  },
+  {
+    "instance_id": "sphinx-doc__sphinx-11445",
+    "difficulty": "15 min - 1 hour"
+  },
+  { "instance_id": "sphinx-doc__sphinx-11510", "difficulty": "1-4 hours" },
+  { "instance_id": "sphinx-doc__sphinx-7440", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-7454", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-7462", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-7590", "difficulty": ">4 hours" },
+  { "instance_id": "sphinx-doc__sphinx-7748", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sphinx-doc__sphinx-7757", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sphinx-doc__sphinx-7889", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-7910", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-7985", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sphinx-doc__sphinx-8035", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sphinx-doc__sphinx-8056", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sphinx-doc__sphinx-8120", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sphinx-doc__sphinx-8265", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sphinx-doc__sphinx-8269", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-8459", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-8475", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-8548", "difficulty": "1-4 hours" },
+  { "instance_id": "sphinx-doc__sphinx-8551", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sphinx-doc__sphinx-8593", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sphinx-doc__sphinx-8595", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-8621", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-8638", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sphinx-doc__sphinx-8721", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-9229", "difficulty": "1-4 hours" },
+  { "instance_id": "sphinx-doc__sphinx-9230", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-9258", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-9281", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-9320", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-9367", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-9461", "difficulty": "1-4 hours" },
+  { "instance_id": "sphinx-doc__sphinx-9591", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-9602", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sphinx-doc__sphinx-9658", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sphinx-doc__sphinx-9673", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sphinx-doc__sphinx-9698", "difficulty": "<15 min fix" },
+  { "instance_id": "sphinx-doc__sphinx-9711", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-11618", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-12096", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-12419", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-12481", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-12489", "difficulty": "1-4 hours" },
+  { "instance_id": "sympy__sympy-13031", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-13091", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-13372", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-13480", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-13551", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-13615", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-13647", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-13757", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-13798", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-13852", "difficulty": "1-4 hours" },
+  { "instance_id": "sympy__sympy-13877", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-13878", "difficulty": ">4 hours" },
+  { "instance_id": "sympy__sympy-13974", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-14248", "difficulty": "1-4 hours" },
+  { "instance_id": "sympy__sympy-14531", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-14711", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-14976", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-15017", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-15345", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-15349", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-15599", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-15809", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-15875", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-15976", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-16450", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-16597", "difficulty": "1-4 hours" },
+  { "instance_id": "sympy__sympy-16766", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-16792", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-16886", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-17139", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-17318", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-17630", "difficulty": "1-4 hours" },
+  { "instance_id": "sympy__sympy-17655", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-18189", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-18199", "difficulty": "1-4 hours" },
+  { "instance_id": "sympy__sympy-18211", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-18698", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-18763", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-19040", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-19346", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-19495", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-19637", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-19783", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-19954", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-20154", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-20428", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-20438", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-20590", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-20801", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-20916", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-21379", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-21596", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-21612", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-21847", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-21930", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-22080", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-22456", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-22714", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-22914", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-23262", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-23413", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-23534", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-23824", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-23950", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-24066", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-24213", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-24443", "difficulty": "15 min - 1 hour" },
+  { "instance_id": "sympy__sympy-24539", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-24562", "difficulty": "<15 min fix" },
+  { "instance_id": "sympy__sympy-24661", "difficulty": "15 min - 1 hour" }
+]

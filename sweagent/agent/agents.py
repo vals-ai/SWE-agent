@@ -1314,7 +1314,7 @@ class DefaultAgent(AbstractAgent):
 
     def add_step_to_trajectory(self, step: StepOutput) -> None:
         trajectory_step = TrajectoryStep(
-            {
+            { 
                 "action": step.action,
                 "observation": step.observation,
                 "response": step.output,
