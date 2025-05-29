@@ -29,6 +29,7 @@ All instance specifications support the [green]filter[/green], [green]slice[/gre
 With [green]filter[/green], you can select specific instances, e.g., [green]--instances.filter='instance_id_1|instance_id_2'[/green].
 """
 
+import asyncio
 import getpass
 import json
 import logging
@@ -66,6 +67,7 @@ from sweagent.run.merge_predictions import merge_predictions
 from sweagent.run.run_single import RunSingleConfig
 from sweagent.types import AgentRunResult
 from sweagent.utils.config import load_environment_variables
+from sweagent.utils.groupings import aggregate_all_stats, aggregate_based_off_difficulty
 from sweagent.utils.log import (
     add_file_handler,
     add_logger_names_to_stream_handlers,
@@ -264,6 +266,19 @@ class RunBatch:
         for instance in self.instances:
             output_dirs.append(self.output_dir / instance.problem_statement.id)
         merge_predictions(output_dirs, self.output_dir / "preds.json")
+
+        try:
+            asyncio.run(
+                aggregate_all_stats(output_dirs, self.output_dir / "all_stats.json")
+            )
+            asyncio.run(
+                aggregate_based_off_difficulty(
+                    output_dirs, self.output_dir / "stats_difficulty.json"
+                )
+            )
+
+        except Exception as e:
+            self.logger.error(f"Error aggregating stats: {traceback.format_exc()}")
 
         self._chooks.on_end()
 
