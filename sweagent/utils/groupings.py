@@ -19,7 +19,7 @@ async def aggregate_all_stats(path: Path) -> None:
     aggregated_stats: dict[str, float | int | dict[str, float]] = {}
 
     valid_directories = [
-        directory for directory in path.parent.iterdir() if directory.is_dir()
+        directory for directory in path.iterdir() if directory.is_dir()
     ]
 
     if len(valid_directories) == 0:
@@ -97,7 +97,7 @@ async def aggregate_based_off_difficulty(path: Path) -> None:
     }
 
     valid_directories = [
-        directory for directory in path.parent.iterdir() if directory.is_dir()
+        directory for directory in path.iterdir() if directory.is_dir()
     ]
 
     if len(valid_directories) == 0:
