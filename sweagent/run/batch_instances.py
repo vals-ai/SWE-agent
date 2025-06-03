@@ -372,7 +372,7 @@ class ExpertInstancesFromFile(BaseModel, AbstractInstanceSource):
     `EnvironmentInstanceConfig` objects, i.e., we could specify separate deployment configurations etc.
     """
 
-    path: Path
+    path: Path | None = None
     filter: str = ".*"
     """Regular expression to filter the instances by instance id."""
     slice: str = ""
@@ -387,7 +387,10 @@ class ExpertInstancesFromFile(BaseModel, AbstractInstanceSource):
     """Discriminator for (de)serialization/CLI. Do not change."""
 
     def get_instance_configs(self) -> list[BatchInstance]:
-        instance_dicts = load_file(self.path)
+        if self.path is not None:
+            instance_dicts = load_file(self.path)
+        else:
+            instance_dicts = []
         instances = [
             BatchInstance.model_validate(instance_dict)
             for instance_dict in instance_dicts
