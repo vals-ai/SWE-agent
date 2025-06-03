@@ -340,8 +340,8 @@ class AbstractModel(ABC):
 def _handle_raise_commands(action: str) -> None:
     if action == "raise_runtime":
         raise SwerexException()
-    elif action == "raise_cost":
-        raise CostLimitExceededError()
+    # elif action == "raise_cost":
+    #     raise CostLimitExceededError()
     elif action == "raise_context":
         raise ContextWindowExceededError()
     elif action.startswith("raise_function_calling"):
