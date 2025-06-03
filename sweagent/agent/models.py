@@ -390,12 +390,12 @@ class HumanModel(AbstractModel):
     ) -> None:
         self.stats.instance_cost += self.config.cost_per_call
         self.stats.api_calls += 1
-        if self.stats.instance_cost > self.config.per_instance_cost_limit:
-            msg = f"Instance cost limit exceeded: {self.stats.instance_cost} > {self.config.per_instance_cost_limit}"
-            raise InstanceCostLimitExceededError(msg)
-        if self.stats.instance_cost > self.config.total_cost_limit:
-            msg = f"Total cost limit exceeded: {self.stats.instance_cost} > {self.config.total_cost_limit}"
-            raise TotalCostLimitExceededError(msg)
+        # if self.stats.instance_cost > self.config.per_instance_cost_limit:
+        #     msg = f"Instance cost limit exceeded: {self.stats.instance_cost} > {self.config.per_instance_cost_limit}"
+        #     raise InstanceCostLimitExceededError(msg)
+        # if self.stats.instance_cost > self.config.total_cost_limit:
+        #     msg = f"Total cost limit exceeded: {self.stats.instance_cost} > {self.config.total_cost_limit}"
+        #     raise TotalCostLimitExceededError(msg)
 
     def _query(
         self,
