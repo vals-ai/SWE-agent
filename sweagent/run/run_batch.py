@@ -102,7 +102,8 @@ class RunBatchConfig(BaseSettings, cli_implicit_flags=False):
     """Whether to show a progress bar. Progress bar is never shown for human models.
     Progress bar is always shown for multi-worker runs.
     """
-
+    max_steps: int | None = None
+    """Maximum number of steps to run. If not specified, the agent will run until it exits."""
     # pydantic config
     model_config = SettingsConfigDict(extra="forbid", env_prefix="SWE_AGENT_")
 
@@ -151,6 +152,7 @@ class RunBatch:
         agent_config: AgentConfig,
         *,
         output_dir: Path = Path("."),
+        max_steps: int | None = None,
         hooks: list[RunHook] | None = None,
         raise_exceptions: bool = False,
         redo_existing: bool = False,
@@ -183,6 +185,7 @@ class RunBatch:
         self.instances = instances
         self.agent_config = agent_config
         self.output_dir = output_dir
+        self.max_steps = max_steps
         self._raise_exceptions = raise_exceptions
         self._chooks = CombinedRunHooks()
         self._redo_existing = redo_existing
@@ -232,6 +235,7 @@ class RunBatch:
             num_workers=config.num_workers,
             progress_bar=config.progress_bar,
             random_delay_multiplier=config.random_delay_multiplier,
+            max_steps=config.max_steps,
         )
         if (
             isinstance(config.instances, SWEBenchInstances)

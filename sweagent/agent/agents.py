@@ -170,6 +170,8 @@ class DefaultAgentConfig(BaseModel):
 
     type: Literal["default"] = "default"
 
+    max_steps: int | None = None
+
     # pydantic config
     model_config = ConfigDict(extra="forbid")
 
@@ -204,6 +206,10 @@ class _ExitForfeit(Exception):
 
 
 class _TotalExecutionTimeExceeded(Exception):
+    """Used for internal control flow"""
+
+
+class _MaxStepsExceeded(Exception):
     """Used for internal control flow"""
 
 
@@ -468,6 +474,7 @@ class DefaultAgent(AbstractAgent):
         _catch_errors: bool = True,
         _always_require_zero_exit_code: bool = False,
         action_sampler_config: ActionSamplerConfig | None = None,
+        max_steps: int | None = None,
     ):
         """The agent handles the behaviour of the model and how it interacts with the environment.
 
@@ -481,6 +488,7 @@ class DefaultAgent(AbstractAgent):
         self._run_start_time = None
         self._run_end_time = None
         self.total_steps = 0
+        self.max_steps = max_steps
         self.tools = tools
         if isinstance(self.model, HumanThoughtModel):
             self.tools.config.parse_function = ThoughtActionParser()
@@ -529,6 +537,7 @@ class DefaultAgent(AbstractAgent):
             model=model,
             max_requeries=config.max_requeries,
             action_sampler_config=config.action_sampler,
+            max_steps=config.max_steps,
         )
 
     def add_hook(self, hook: AbstractAgentHook) -> None:
@@ -1187,7 +1196,14 @@ class DefaultAgent(AbstractAgent):
 
         n_format_fails = 0
         while n_format_fails < self.max_requeries:
+
             try:
+                if (
+                    self.max_steps is not None
+                    and len(self.trajectory) + 1 > self.max_steps
+                ):
+                    raise _MaxStepsExceeded()
+
                 return self.forward(history)
 
             # Errors that are raised
@@ -1234,6 +1250,13 @@ class DefaultAgent(AbstractAgent):
                 # Requery with the same template as the last step
 
             # Errors that cause exit
+
+            except _MaxStepsExceeded:
+                self.logger.info("Exiting due to max steps")
+                return handle_error_with_autosubmission(
+                    "exit_max_steps",
+                    "Exit due to max steps",
+                )
 
             except _ExitForfeit:
                 self.logger.info("Exiting due to forfeit")
@@ -1303,10 +1326,7 @@ class DefaultAgent(AbstractAgent):
                     "exit_error",
                     f"Exit due to unknown error: {e}",
                 )
-        self.logger.exception(
-            "Exit due to repeated format/blocklist/bash syntax errors",
-            exc_info=True,
-        )
+
         return handle_error_with_autosubmission(
             "exit_format",
             "Exit due to repeated format/blocklist/bash syntax errors",
@@ -1314,7 +1334,7 @@ class DefaultAgent(AbstractAgent):
 
     def add_step_to_trajectory(self, step: StepOutput) -> None:
         trajectory_step = TrajectoryStep(
-            { 
+            {
                 "action": step.action,
                 "observation": step.observation,
                 "response": step.output,
@@ -1344,6 +1364,8 @@ class DefaultAgent(AbstractAgent):
 
         n_step = len(self.trajectory) + 1
         self.logger.info("=" * 25 + f" STEP {n_step} " + "=" * 25)
+        self.logger.info(f"Max steps: {self.max_steps}")
+
         step_output = self.forward_with_handling(self.messages)
         self.add_step_to_history(step_output)
 

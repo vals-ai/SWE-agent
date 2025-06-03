@@ -15,7 +15,13 @@ class FunctionCallingFormatError(FormatError):
         self,
         message: str,
         error_code: Literal[
-            "missing", "multiple", "incorrect_args", "invalid_json", "invalid_command", "missing_arg", "unexpected_arg"
+            "missing",
+            "multiple",
+            "incorrect_args",
+            "invalid_json",
+            "invalid_command",
+            "missing_arg",
+            "unexpected_arg",
         ],
         **extra_info: Any,
     ):
