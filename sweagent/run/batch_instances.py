@@ -70,7 +70,7 @@ def _filter_batch_items(
     filter_: str,
     slice_: str = "",
     shuffle: bool = False,
-    instance_ids: list[str] = None,
+    instance_ids: list[str] | None = None,
 ) -> list[BatchInstance]:
     if shuffle:
         instances = sorted(instances.copy(), key=lambda x: x.problem_statement.id)
@@ -359,7 +359,7 @@ class SWEBenchInstances(BaseModel, AbstractInstanceSource):
             filter_=self.filter,
             slice_=self.slice,
             shuffle=self.shuffle,
-            instance_ids=instance_ids,
+            instance_ids=instance_ids if self.file else None,
         )
 
     @property
