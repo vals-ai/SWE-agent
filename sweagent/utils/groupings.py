@@ -69,6 +69,7 @@ async def aggregate_all_stats(directories: list[Path], output_path: Path) -> Non
 EASY = "<15 min fix"
 MEDIUM = "15 min - 1 hour"
 HARD = "1-4 hours"
+VERY_HARD = ">4 hours"
 
 
 async def aggregate_based_off_difficulty(
@@ -85,6 +86,7 @@ async def aggregate_based_off_difficulty(
         EASY: 0,
         MEDIUM: 0,
         HARD: 0,
+        VERY_HARD: 0,
     }
 
     assert (
