@@ -47,6 +47,7 @@ except ImportError:
 
 litellm.suppress_debug_info = True
 litellm.modify_params = True
+litellm.drop_params = True
 
 
 _THREADS_THAT_USED_API_KEYS = []
