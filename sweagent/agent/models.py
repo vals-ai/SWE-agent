@@ -46,6 +46,7 @@ except ImportError:
     readline = None
 
 litellm.suppress_debug_info = True
+litellm.modify_params = True
 
 
 _THREADS_THAT_USED_API_KEYS = []
