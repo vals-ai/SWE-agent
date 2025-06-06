@@ -67,7 +67,11 @@ from sweagent.run.merge_predictions import merge_predictions
 from sweagent.run.run_single import RunSingleConfig
 from sweagent.types import AgentRunResult
 from sweagent.utils.config import load_environment_variables
-from sweagent.utils.groupings import aggregate_all_stats, aggregate_based_off_difficulty
+from sweagent.utils.groupings import (
+    aggregate_all_stats,
+    aggregate_all_stats_and_difficulty,
+    aggregate_based_off_difficulty,
+)
 from sweagent.utils.log import (
     add_file_handler,
     add_logger_names_to_stream_handlers,
@@ -272,16 +276,8 @@ class RunBatch:
         merge_predictions(output_dirs, self.output_dir / "preds.json")
 
         try:
-            asyncio.run(
-                aggregate_all_stats(output_dirs, self.output_dir / "all_stats.json")
-            )
-            asyncio.run(
-                aggregate_based_off_difficulty(
-                    output_dirs, self.output_dir / "stats_difficulty.json"
-                )
-            )
-
-        except Exception as e:
+            asyncio.run(aggregate_all_stats_and_difficulty(self.output_dir))
+        except Exception:
             self.logger.error(f"Error aggregating stats: {traceback.format_exc()}")
 
         self._chooks.on_end()

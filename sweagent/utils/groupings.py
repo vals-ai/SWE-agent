@@ -1,14 +1,13 @@
 import asyncio
-import logging
 from pathlib import Path
 import json
-
+from typing import Any
 from sweagent.utils.log import get_logger
 
 logger = get_logger("merge", emoji="➕")
 
 
-async def aggregate_all_stats(directories: list[Path], output_path: Path) -> None:
+async def aggregate_all_stats(directories: list[Path]) -> dict[str, Any]:
     """
     Goes through each valid instance directory and combines the metrics from base metric file into a single dict.
 
@@ -18,14 +17,14 @@ async def aggregate_all_stats(directories: list[Path], output_path: Path) -> Non
         path: path to the directory that has all the instance directories inside
     """
     batch_size = 20
-    aggregated_stats: dict[str, float | int | dict[str, float]] = {}
+    aggregated_stats: dict[str, Any] = {}
 
     async def process_directory(
         directory: Path,
     ) -> dict[str, float | int | dict[str, float]] | None:
         stats_path = directory / "stats.json"
         if not stats_path.exists():
-            logger.warning(f"Stats file not found at {stats_path}")
+            logger.warning(f"Stats file not found at {stats_path.parent.name}")
             return None
 
         try:
@@ -61,9 +60,7 @@ async def aggregate_all_stats(directories: list[Path], output_path: Path) -> Non
         batch = directories[i : i + batch_size]
         await process_batch(batch)
 
-    output_path.write_text(json.dumps(aggregated_stats, indent=2))
-
-    logger.info(f"Aggregated {len(directories)} stats and saved to {output_path}")
+    return aggregated_stats
 
 
 EASY = "<15 min fix"
@@ -72,15 +69,13 @@ HARD = "1-4 hours"
 VERY_HARD = ">4 hours"
 
 
-async def aggregate_based_off_difficulty(
-    directories: list[Path], output_path: Path
-) -> None:
+async def aggregate_based_off_difficulty(directories: list[Path]) -> dict[str, Any]:
     """
     Goes through each valid instance directory and combines the metrics from base metric file into a single dict.
     """
     batch_size = 20
 
-    difficulty_mapping_path = Path("./difficulty_mappings.json")
+    difficulty_mapping_path = Path(__file__).parent / "difficulty_mappings.json"
 
     difficulty_count = {
         EASY: 0,
@@ -104,10 +99,12 @@ async def aggregate_based_off_difficulty(
         logger.error(f"Failed to parse JSON from {difficulty_mapping_path}: {e}")
         return
 
-    aggregated_stats: dict[str, float | int | dict[str, float]] = {
+    aggregated_stats: dict[str, Any] = {
+        "difficulty_count": difficulty_count,
         EASY: {},
         MEDIUM: {},
         HARD: {},
+        VERY_HARD: {},
     }
 
     async def process_directory(
@@ -115,14 +112,15 @@ async def aggregate_based_off_difficulty(
     ) -> tuple[dict[str, float | int | dict[str, float]] | None, str]:
         stats_path = directory / "stats.json"
         if not stats_path.exists():
-            logger.warning(f"Stats file not found at {stats_path}")
-            return None, difficulty_mapping[directory.name]
+            return None, difficulty_mapping.get(directory.name, None)
 
         try:
             with open(stats_path, "r") as f:
                 stats: dict[str, float | int | dict[str, float]] = json.load(f)
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON from {stats_path}: {e}")
+            if len(directory.name) == 0:
+                return None, None
             return None, difficulty_mapping[directory.name]
 
         instance_id = directory.name
@@ -163,10 +161,22 @@ async def aggregate_based_off_difficulty(
         batch = directories[i : i + batch_size]
         await process_batch(batch)
 
-    aggregated_stats["difficulty_count"] = difficulty_count
+    return aggregated_stats
 
-    output_path.write_text(json.dumps(aggregated_stats, indent=2))
 
-    logger.info(
-        f"Aggregated {len(directories)} stats based off difficulty and saved to {output_path}"
-    )
+async def aggregate_all_stats_and_difficulty(output_dir: Path) -> None:
+
+    directories_to_process = [
+        directory for directory in output_dir.iterdir() if directory.is_dir()
+    ]
+
+    all_stats = await aggregate_all_stats(directories_to_process)
+    difficulty_stats = await aggregate_based_off_difficulty(directories_to_process)
+
+    final_output = {
+        "overall": all_stats,
+        "difficulty": difficulty_stats,
+    }
+
+    output_path = output_dir / "all_stats.json"
+    output_path.write_text(json.dumps(final_output, indent=2))
