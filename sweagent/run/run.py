@@ -50,6 +50,7 @@ def get_cli():
             "b",
             "i",
             "I",
+            "aggregate-stats",
             "extract-pred",
             "compare-runs",
             "cr",
@@ -58,7 +59,9 @@ def get_cli():
         ],
         nargs="?",
     )
-    parser.add_argument("-h", "--help", action="store_true", help="Show this help message and exit")
+    parser.add_argument(
+        "-h", "--help", action="store_true", help="Show this help message and exit"
+    )
     return parser
 
 
@@ -94,7 +97,9 @@ def main(args: list[str] | None = None):
 
         run_replay_main(remaining_args)
     elif command == "traj-to-demo":
-        from sweagent.run.run_traj_to_demo import run_from_cli as convert_traj_to_demo_main
+        from sweagent.run.run_traj_to_demo import (
+            run_from_cli as convert_traj_to_demo_main,
+        )
 
         convert_traj_to_demo_main(remaining_args)
     elif command == "run-api":
@@ -102,9 +107,15 @@ def main(args: list[str] | None = None):
 
         run_api_main(remaining_args)
     elif command == "merge-preds":
-        from sweagent.run.merge_predictions import run_from_cli as merge_predictions_main
+        from sweagent.run.merge_predictions import (
+            run_from_cli as merge_predictions_main,
+        )
 
         merge_predictions_main(remaining_args)
+    elif command == "aggregate-stats":
+        from sweagent.run.aggregate_stats import run_from_cli as aggregate_stats_main
+
+        aggregate_stats_main(remaining_args)
     elif command in ["inspector", "I"]:
         from sweagent.inspector.server import run_from_cli as inspector_main
 
@@ -122,7 +133,9 @@ def main(args: list[str] | None = None):
 
         compare_runs_main(remaining_args)
     elif command in ["remove-unfinished", "ru"]:
-        from sweagent.run.remove_unfinished import run_from_cli as remove_unfinished_main
+        from sweagent.run.remove_unfinished import (
+            run_from_cli as remove_unfinished_main,
+        )
 
         remove_unfinished_main(remaining_args)
     else:
