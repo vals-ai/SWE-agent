@@ -765,15 +765,16 @@ class LiteLLMModel(AbstractModel):
         """Handle streaming-only models like grok-4-0709 by collecting chunks and building complete response"""
         self._sleep()
         input_tokens: int = litellm.utils.token_counter(messages=messages, model=self.config.name)
-        if self.model_max_input_tokens is None:
-            msg = (
-                f"No max input tokens found for model {self.config.name!r}. "
-                "If you are using a local model, you can set `max_input_token` in the model config to override this."
-            )
-            self.logger.warning(msg)
-        elif input_tokens > self.model_max_input_tokens > 0:
-            msg = f"Input tokens {input_tokens} exceed max tokens {self.model_max_input_tokens}"
-            raise ContextWindowExceededError(msg)
+        self.logger.info(f"Input tokens: {input_tokens}")
+        # if self.model_max_input_tokens is None:
+        #     msg = (
+        #         f"No max input tokens found for model {self.config.name!r}. "
+        #         "If you are using a local model, you can set `max_input_token` in the model config to override this."
+        #     )
+        #     self.logger.warning(msg)
+        # elif input_tokens > self.model_max_input_tokens > 0:
+        #     msg = f"Input tokens {input_tokens} exceed max tokens {self.model_max_input_tokens}"
+        #     raise ContextWindowExceededError(msg)
 
         extra_args = {}
         if self.config.api_base:
@@ -809,11 +810,16 @@ class LiteLLMModel(AbstractModel):
                 raise ContextWindowExceededError from e
             raise
 
-        # Collect all chunks
+        # Collect all chunks and manually extract content for token counting
         chunks = []
+        complete_content = ""
         for chunk in response:
-            self.logger.info(f"Chunk: {chunk}")
             chunks.append(chunk)
+            # Manually collect content from chunks
+            if hasattr(chunk, "choices") and chunk.choices and len(chunk.choices) > 0:
+                delta = chunk.choices[0].delta
+                if hasattr(delta, "content") and delta.content:
+                    complete_content += delta.content
 
         # Use litellm's helper function to rebuild complete response
         complete_response = litellm.stream_chunk_builder(chunks, messages=messages)
@@ -833,27 +839,58 @@ class LiteLLMModel(AbstractModel):
                 raise ModelConfigurationError(msg)
             cost = 0
 
-        choices = complete_response.choices
-        n_choices = n if n is not None else 1
         outputs = []
         output_tokens = 0
         tool_names = None
 
-        for i in range(n_choices):
-            output = choices[i].message.content or ""
-            output_tokens += litellm.utils.token_counter(text=output, model=self.config.name)
-            output_dict = {"message": output}
-            if self.tools.use_function_calling:
-                if complete_response.choices[i].message.tool_calls:
-                    tool_calls = [call.to_dict() for call in complete_response.choices[i].message.tool_calls]
+        # Use usage information from complete_response if available, otherwise fallback to manual counting
+        if (
+            complete_response
+            and hasattr(complete_response, "usage")
+            and complete_response.usage
+            and hasattr(complete_response.usage, "completion_tokens")
+        ):
+            output_tokens = complete_response.usage.completion_tokens
+            self.logger.info(f"output_tokens from complete_response.usage: {output_tokens}")
+        else:
+            # Fallback to manual token counting
+            output_tokens = litellm.utils.token_counter(text=complete_content, model=self.config.name)
+            self.logger.info(f"output_tokens from manual counting: {output_tokens}")
+
+        outputs = [{"message": complete_content}]
+
+        # Try to extract tool calls from the rebuilt response if available
+        if (
+            self.tools.use_function_calling
+            and complete_response
+            and hasattr(complete_response, "choices")
+            and complete_response.choices
+        ):
+            try:
+                if (
+                    hasattr(complete_response.choices[0], "message")
+                    and hasattr(complete_response.choices[0].message, "tool_calls")
+                    and complete_response.choices[0].message.tool_calls
+                ):
+                    tool_calls = [call.to_dict() for call in complete_response.choices[0].message.tool_calls]
                     tool_names = [call["function"]["name"] for call in tool_calls]
-                else:
-                    tool_calls = []
-                output_dict["tool_calls"] = tool_calls
-            outputs.append(output_dict)
+                    outputs[0]["tool_calls"] = tool_calls
+            except Exception as e:
+                self.logger.debug(f"Error extracting tool calls: {e}")
+
+        # Use input tokens from complete_response.usage if available, otherwise use manual count
+        final_input_tokens = input_tokens
+        if (
+            complete_response
+            and hasattr(complete_response, "usage")
+            and complete_response.usage
+            and hasattr(complete_response.usage, "prompt_tokens")
+        ):
+            final_input_tokens = complete_response.usage.prompt_tokens
+            self.logger.info(f"Using input_tokens from complete_response.usage: {final_input_tokens}")
 
         self._update_stats(
-            input_tokens=input_tokens,
+            input_tokens=final_input_tokens,
             output_tokens=output_tokens,
             cost=cost,
             tool_names=tool_names,
