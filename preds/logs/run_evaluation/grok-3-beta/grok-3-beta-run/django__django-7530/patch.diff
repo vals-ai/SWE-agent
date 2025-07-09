@@ -1,8 +1,0 @@
-diff --git a/fix_script.sh b/fix_script.sh
-new file mode 100644
-index 0000000000..1678e45c05
---- /dev/null
-+++ b/fix_script.sh
-@@ -0,0 +1,2 @@
-+#!/bin/bash
-+sed -i "s|for app_label in consistency_check_labels|for app_label in app_labels|g" /testbed/django/core/management/commands/makemigrations.py

@@ -299,9 +299,9 @@ class InstancesFromHuggingFace(BaseModel, AbstractInstanceSource):
 class SWEBenchInstances(BaseModel, AbstractInstanceSource):
     """Load instances from SWE-bench."""
 
-    subset: Literal["lite", "verified", "full"] = "lite"
+    subset: Literal["lite", "verified", "full"] = "verified"
 
-    split: Literal["dev", "test"] = "dev"
+    split: Literal["dev", "test"] = "test"
 
     deployment: DeploymentConfig = Field(
         default_factory=lambda: DockerDeploymentConfig(image="python:3.11"),
@@ -341,7 +341,9 @@ class SWEBenchInstances(BaseModel, AbstractInstanceSource):
     def get_instance_configs(self) -> list[BatchInstance]:
         from datasets import load_dataset
 
-        ds: list[dict[str, Any]] = load_dataset(self._get_huggingface_name(), split=self.split)  # type: ignore
+        ds: list[dict[str, Any]] = load_dataset(
+            self._get_huggingface_name(), split=self.split
+        )  # type: ignore
 
         if isinstance(self.deployment, DockerDeploymentConfig):
             self.deployment.platform = "linux/amd64"
