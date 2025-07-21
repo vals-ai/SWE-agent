@@ -68,9 +68,7 @@ from sweagent.run.run_single import RunSingleConfig
 from sweagent.types import AgentRunResult
 from sweagent.utils.config import load_environment_variables
 from sweagent.utils.groupings import (
-    aggregate_all_stats,
     aggregate_all_stats_and_difficulty,
-    aggregate_based_off_difficulty,
 )
 from sweagent.utils.log import (
     add_file_handler,

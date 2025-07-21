@@ -11,7 +11,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from threading import Lock
 from typing import Annotated, Any, Literal
-
+from . import TogetherModel
 import litellm
 import litellm.types.utils
 from pydantic import BaseModel as PydanticBaseModel
@@ -69,6 +69,7 @@ class GenericAPIModelConfig(PydanticBaseModel):
     """
 
     name: str = Field(description="Name of the model.")
+    provider: str = Field(description="Provider of the model.")
 
     per_instance_cost_limit: float = Field(
         default=3.0,
@@ -1031,4 +1032,8 @@ def get_model(args: ModelConfig, tools: ToolConfig) -> AbstractModel:
     assert isinstance(args, GenericAPIModelConfig), (
         f"Expected {GenericAPIModelConfig}, got {args}"
     )
+
+    if args.provider == "together":
+        return TogetherModel(args, tools)
+
     return LiteLLMModel(args, tools)
