@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import time
 
@@ -12,10 +14,10 @@ from tenacity import (
 )
 
 from sweagent.agent.models import (
-    AbstractModel,
     GenericAPIModelConfig,
     InstanceStats,
     GLOBAL_STATS,
+    AbstractModel,
     GLOBAL_STATS_LOCK,
 )
 from sweagent.exceptions import (
@@ -50,16 +52,18 @@ class TogetherModel(AbstractModel):
         if self.config.max_input_tokens is not None:
             self.model_max_input_tokens = self.config.max_input_tokens
         else:
-            raise ModelConfigurationError(
+            self.logger.error(
                 f"No max input tokens found for model {self.config.name!r}."
             )
+            raise ModelConfigurationError()
 
         if self.config.max_output_tokens is not None:
             self.model_max_output_tokens = self.config.max_output_tokens
         else:
-            raise ModelConfigurationError(
+            self.logger.error(
                 f"No max output tokens found for model {self.config.name!r}."
             )
+            raise ModelConfigurationError()
 
     @property
     def instance_cost_limit(self) -> float:
@@ -141,6 +145,8 @@ class TogetherModel(AbstractModel):
             raise
         except Exception as e:
             raise RuntimeError(f"Together API error: {e}") from e
+
+        self.logger.info(f"Together API response: {response}")
 
         outputs = []
         output_tokens = (

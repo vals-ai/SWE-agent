@@ -1,6 +1,6 @@
-from sweagent.agent.providers.together import TogetherModel
-
+from .providers import LiteLLMModel, TogetherModel
 
 __all__ = [
     "TogetherModel",
+    "LiteLLMModel",
 ]
