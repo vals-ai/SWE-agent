@@ -36,7 +36,6 @@ import dotenv
 
 dotenv.load_dotenv()
 
-api_key = os.getenv("TOGETHER_API_KEY")
 
 MILLION = 1000000
 
@@ -47,6 +46,10 @@ class TogetherModel(AbstractModel):
         self.stats = InstanceStats()
         self.tools = tools
         self.logger = get_logger("swea-lm", emoji="🤖")
+
+        api_key = os.getenv("TOGETHER_API_KEY")
+
+        self.logger.info(f"API Key present: {'✅' if api_key else '❌'}")
 
         self.client = together.Client(api_key=api_key)
 
