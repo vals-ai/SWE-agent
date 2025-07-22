@@ -337,9 +337,11 @@ class RunBatch:
 
         self._progress_manager.on_instance_start(instance.problem_statement.id)
 
-        if self.should_skip(instance):
+        skip, exit_status = self.should_skip(instance)
+
+        if skip:
             self._progress_manager.on_instance_end(
-                instance.problem_statement.id, exit_status="skipped"
+                instance.problem_statement.id, exit_status=exit_status or "skipped"
             )
             self._remove_instance_log_file_handlers(instance.problem_statement.id)
             return
@@ -432,11 +434,9 @@ class RunBatch:
         self._chooks.on_instance_completed(result=result)
         return result
 
-    def should_skip(self, instance: BatchInstance) -> bool:
-        """Check if we should skip this instance"""
-        self.logger.info("entering")
+    def should_skip(self, instance: BatchInstance) -> tuple[bool, str | None]:
         if self._redo_existing:
-            return False
+            return False, None
 
         # Check if there's an existing trajectory for this instance
         log_path = (
@@ -452,55 +452,64 @@ class RunBatch:
         )
 
         if not log_path.exists() and not pred_path.exists():
-            return False
+            return False, None
 
         if not pred_path.exists():
-            return False
+            return False, None
 
         pred_content = pred_path.read_text()
         if not pred_content.strip():
             self.logger.warning("Found empty prediction: %s. Removing.", pred_path)
+
             pred_path.unlink()
             log_path.unlink()
-            return False
+
+            return False, None
 
         pred_json: dict[str, str] = json.loads(pred_content)
-        self.logger.warning(pred_json)
         if pred_json.get("model_patch", None) is None:
             self.logger.warning(
                 "Found existing trajectory with no model patch: %s. Removing.",
                 pred_path,
             )
+
             pred_path.unlink()
             log_path.unlink()
-            return False
+
+            return False, None
 
         content = log_path.read_text()
         if not content.strip():
             self.logger.warning("Found empty trajectory: %s. Removing.", log_path)
+
             log_path.unlink()
-            return False
+
+            return False, None
 
         try:
             data = json.loads(content)
-            # If the trajectory has no exit status, it's incomplete and we will redo it # Uncaught DockerPullError
             exit_status = data["info"].get("exit_status", None)
             if exit_status == "early_exit" or exit_status is None:
                 self.logger.warning(
-                    f"Found existing trajectory with no exit status: {log_path}. Removing."
+                    "Found existing trajectory with no exit status: %s. Removing.",
+                    log_path,
                 )
+
                 log_path.unlink()
-                return False
+
+                return False, None
         except Exception as e:
             self.logger.error(
                 f"Failed to check existing trajectory: {log_path}: {e}. Removing."
             )
-            # If we can't check the trajectory, we will redo it
+
             log_path.unlink()
-            return False
-        # otherwise, we will skip it
+
+            return False, None
+
         self.logger.info(f"⏭️ Skipping existing trajectory: {log_path}")
-        return True
+
+        return True, exit_status
 
     def _add_instance_log_file_handlers(
         self, instance_id: str, multi_worker: bool = False

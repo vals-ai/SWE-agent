@@ -49,40 +49,34 @@ class GenericAPIModelConfig(PydanticBaseModel):
     The model will be served with the help of the `litellm` library.
     """
 
-    name: str = Field(description="Name of the model.")
+    # Routing to the correct model and correct provider
+    name: str
+    provider: str
 
-    provider: str = Field(description="Provider of the model.")
+    # TODO: probably should deprecate these fields since we don't use them internally
+    per_instance_cost_limit: float = 0.0
+    total_cost_limit: float = 0.0
+    per_instance_call_limit: int = 0
 
-    input_cost: str = Field(description="Price per mil tokens input")
-
-    output_cost: str = Field(description="Price per mil tokens output")
-
-    per_instance_cost_limit: float = Field(
-        default=3.0,
-        description="Cost limit for every instance (task).",
-    )
-    total_cost_limit: float = Field(default=0.0, description="Total cost limit.")
-    per_instance_call_limit: int = Field(
-        default=0, description="Per instance call limit."
-    )
+    # Model specific fields
     temperature: float = 0.0
-    """Sampling temperature"""
     top_p: float | None = 1.0
-    """Sampling top-p"""
+    max_input_tokens: int | None = 0
+    max_output_tokens: int | None = 0
+    completion_kwargs: dict[str, Any] = {}
+
+    # Required for now until we get a yaml file going
+    input_cost: float = Field(description="Price per mil tokens input")
+    output_cost: float = Field(description="Price per mil tokens output")
+
     api_base: str | None = None
     api_version: str | None = None
     api_key: SecretStr | None = None
-    """API key to the model. We recommend using environment variables to set this instead
-    or putting your environment variables in a `.env` file.
-    You can concatenate more than one key by separating them with `:::`, e.g.,
-    `key1:::key2`.
-    If field starts with `$`, it will be interpreted as an environment variable.
-    """
+
+    # ---- Fields that should not really be used ----
+
     stop: list[str] = []
     """Custom stop sequences"""
-
-    completion_kwargs: dict[str, Any] = {}
-    """Additional kwargs to pass to `litellm.completion`"""
 
     convert_system_to_user: bool = False
     """Whether to convert system messages to user messages. This is useful for
@@ -109,22 +103,6 @@ class GenericAPIModelConfig(PydanticBaseModel):
     """Whether to choose the API key based on the thread name (if multiple are configured).
     This ensures that with
     run-batch, we use the same API key within a single-thread so that prompt caching still works.
-    """
-
-    max_input_tokens: int | None = None
-    """If set, this will override the max input tokens for the model that we usually look
-    up from `litellm.model_cost`.
-    Use this for local models or if you want to set a custom max input token limit.
-    If this value is exceeded, a `ContextWindowExceededError` will be raised.
-    Set this to 0 to disable this check.
-    """
-
-    max_output_tokens: int | None = None
-    """If set, this will override the max output tokens for the model that we usually look
-    up from `litellm.model_cost`.
-    Use this for local models or if you want to set a custom max output token limit.
-    If this value is exceeded, a `ContextWindowExceededError` will be raised.
-    Set this to 0 to disable this check.
     """
 
     # pydantic
