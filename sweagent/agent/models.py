@@ -50,7 +50,12 @@ class GenericAPIModelConfig(PydanticBaseModel):
     """
 
     name: str = Field(description="Name of the model.")
+
     provider: str = Field(description="Provider of the model.")
+
+    input_cost: str = Field(description="Price per mil tokens input")
+
+    output_cost: str = Field(description="Price per mil tokens output")
 
     per_instance_cost_limit: float = Field(
         default=3.0,

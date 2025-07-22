@@ -38,6 +38,8 @@ dotenv.load_dotenv()
 
 api_key = os.getenv("TOGETHER_API_KEY")
 
+MILLION = 1000000
+
 
 class TogetherModel(AbstractModel):
     def __init__(self, args: GenericAPIModelConfig, tools: ToolConfig):
@@ -112,11 +114,11 @@ class TogetherModel(AbstractModel):
         self._sleep()
 
         # TODO: Fix this later and get the actual input tokens
-        input_tokens = sum(len(msg.get("content", "")) for msg in messages) // 4
+        # input_tokens = 0
 
-        if self.model_max_input_tokens and input_tokens > self.model_max_input_tokens:
-            msg = f"Input tokens {input_tokens} exceed max tokens {self.model_max_input_tokens}"
-            raise ContextWindowExceededError(msg)
+        # if self.model_max_input_tokens and input_tokens > self.model_max_input_tokens:
+        #     msg = f"Input tokens {input_tokens} exceed max tokens {self.model_max_input_tokens}"
+        #     raise ContextWindowExceededError(msg)
 
         kwargs = {
             "model": self.config.name,
@@ -144,14 +146,13 @@ class TogetherModel(AbstractModel):
                 raise ContextWindowExceededError from e
             raise
         except Exception as e:
-            raise RuntimeError(f"Together API error: {e}") from e
+            raise RuntimeError(f"Unexpected error while process response {e}") from e
 
-        self.logger.info(f"Together API response: {response}")
+        self.logger.info(f"Model response: {response}")
 
         outputs = []
-        output_tokens = (
-            getattr(response.usage, "completion_tokens", 0) if response.usage else 0
-        )
+        output_tokens = response.usage.completion_tokens
+        input_tokens = response.usage.prompt_tokens
         tool_names = None
 
         n_choices = n if n is not None else 1
@@ -180,12 +181,18 @@ class TogetherModel(AbstractModel):
 
             outputs.append(output_dict)
 
+        input_cost_for_turn = (self.config.input_cost * input_tokens) / MILLION
+        output_cost_for_turn = (self.config.output_cost * output_tokens) / MILLION
+
+        total_cost_for_turn = input_cost_for_turn + output_cost_for_turn
+
         self._update_stats(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            cost=0.0,
+            cost=total_cost_for_turn,
             tool_names=tool_names,
         )
+
         return outputs
 
     def _single_query_streaming(
@@ -194,11 +201,7 @@ class TogetherModel(AbstractModel):
         n: int | None = None,
         temperature: float | None = None,
     ) -> list[dict]:
-        """Handle streaming responses by collecting chunks."""
         self._sleep()
-
-        # TODO: Fix this later and get the actual input tokens
-        input_tokens = sum(len(msg.get("content", "")) for msg in messages) // 4
 
         kwargs = {
             "model": self.config.name,
@@ -214,7 +217,6 @@ class TogetherModel(AbstractModel):
 
         if self.tools.use_function_calling and self.tools.tools:
             kwargs["tools"] = self.tools.tools
-
         try:
             stream = self.client.chat.completions.create(**kwargs)
         except RateLimitError as e:
@@ -224,11 +226,12 @@ class TogetherModel(AbstractModel):
                 raise ContextWindowExceededError from e
             raise
         except Exception as e:
-            raise RuntimeError(f"Together API error: {e}") from e
+            raise RuntimeError(f"Unexpected error while process response {e}") from e
 
         complete_content = ""
         tool_calls = []
         output_tokens = 0
+        input_tokens = 0
 
         for chunk in stream:
             if chunk.choices and len(chunk.choices) > 0:
@@ -240,8 +243,7 @@ class TogetherModel(AbstractModel):
 
             if chunk.usage:
                 output_tokens = chunk.usage.completion_tokens
-
-        self.logger.info("Streaming response completed")
+                input_tokens = chunk.usage.prompt_tokens
 
         outputs = [{"message": complete_content}]
         tool_names = None
@@ -261,12 +263,18 @@ class TogetherModel(AbstractModel):
             tool_names = [call["function"]["name"] for call in formatted_tool_calls]
             outputs[0]["tool_calls"] = formatted_tool_calls
 
+        input_cost_for_turn = (self.config.input_cost * input_tokens) / MILLION
+        output_cost_for_turn = (self.config.output_cost * output_tokens) / MILLION
+
+        total_cost_for_turn = input_cost_for_turn + output_cost_for_turn
+
         self._update_stats(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            cost=0.0,
+            cost=total_cost_for_turn,
             tool_names=tool_names,
         )
+
         return outputs
 
     def _query(
