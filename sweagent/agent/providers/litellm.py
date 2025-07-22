@@ -35,6 +35,8 @@ litellm.suppress_debug_info = True
 litellm.modify_params = True
 litellm.drop_params = True
 
+MILLION = 1000000
+
 
 class LiteLLMModel(AbstractModel):
     def __init__(self, args: GenericAPIModelConfig, tools: ToolConfig):
@@ -44,15 +46,6 @@ class LiteLLMModel(AbstractModel):
         self.stats = InstanceStats()
         self.tools = tools
         self.logger = get_logger("swea-lm", emoji="🤖")
-
-        if tools.use_function_calling:
-            if not litellm.utils.supports_function_calling(model=self.config.name):
-                msg = (
-                    f"Model {self.config.name} does not support function calling. If your model"
-                    " does not support function calling, you can use `parse_function='thought_action'` instead. "
-                    "See https://swe-agent.com/latest/faq/ for more information."
-                )
-                self.logger.warning(msg)
 
         if self.config.max_input_tokens is not None:
             self.model_max_input_tokens = self.config.max_input_tokens
@@ -87,6 +80,11 @@ class LiteLLMModel(AbstractModel):
     ) -> None:
         with GLOBAL_STATS_LOCK:
             GLOBAL_STATS.total_cost += cost
+
+        self.logger.info(
+            f"==========\nInput tokens: {input_tokens}\nOutput tokens: {output_tokens}\nCost: {cost}\n=========="
+        )
+
         self.stats.instance_cost += cost
         self.stats.tokens_sent += input_tokens
         self.stats.tokens_received += output_tokens
@@ -95,33 +93,18 @@ class LiteLLMModel(AbstractModel):
         if tool_names is not None:
             self.stats.update_tool_call_definition(tool_names)
 
-        # Log updated cost values to std. err
-        self.logger.debug(
-            f"input_tokens={input_tokens:,}, "
-            f"output_tokens={output_tokens:,}, "
-            f"instance_cost={self.stats.instance_cost:.2f}, "
-            f"cost={cost:.2f}"
-            f"{', tool_names=' + ', '.join(tool_names) if tool_names is not None else ''}"
-        )
-        self.logger.debug(
-            f"total_tokens_sent={self.stats.tokens_sent:,}, "
-            f"total_tokens_received={self.stats.tokens_received:,}, "
-            f"total_cost={GLOBAL_STATS.total_cost:.2f}, "
-            f"total_api_calls={self.stats.api_calls:,}, "
-            f"tool_names={', '.join(sorted(self.stats.tool_call_definitions.keys()))}"
-        )
-
         if 0 < self.config.per_instance_call_limit < self.stats.api_calls:
-            self.logger.warning(
-                f"API calls {self.stats.api_calls} exceeds limit {self.config.per_instance_call_limit}"
-            )
-            msg = "Per instance call limit exceeded"
+            msg = f"API calls {self.stats.api_calls} exceeds limit {self.config.per_instance_call_limit}"
+
+            self.logger.warning(msg)
+
             raise InstanceCallLimitExceededError(msg)
 
     def _sleep(self) -> None:
         elapsed_time = time.time() - GLOBAL_STATS.last_query_timestamp
         if elapsed_time < self.config.delay:
             time.sleep(self.config.delay - elapsed_time)
+
         with GLOBAL_STATS_LOCK:
             GLOBAL_STATS.last_query_timestamp = time.time()
 
@@ -132,28 +115,18 @@ class LiteLLMModel(AbstractModel):
         temperature: float | None = None,
     ) -> list[dict]:
         self._sleep()
-        input_tokens: int = litellm.utils.token_counter(
-            messages=messages, model=self.config.name
-        )
-        if self.model_max_input_tokens is None:
-            msg = (
-                f"No max input tokens found for model {self.config.name!r}. "
-                "If you are using a local model, you can set `max_input_token` in the model config to override this."
-            )
-            self.logger.warning(msg)
-        elif input_tokens > self.model_max_input_tokens > 0:
-            msg = f"Input tokens {input_tokens} exceed max tokens {self.model_max_input_tokens}"
-            raise ContextWindowExceededError(msg)
+
         extra_args = {}
         if self.config.api_base:
-            # Not assigned a default value in litellm, so only pass this if it's set
             extra_args["api_base"] = self.config.api_base
+
         if self.tools.use_function_calling:
             extra_args["tools"] = self.tools.tools
-        # We need to always set max_tokens for anthropic models
+
         completion_kwargs = self.config.completion_kwargs
         if self.lm_provider == "anthropic":
             completion_kwargs["max_tokens"] = self.model_max_output_tokens
+
         try:
             response: litellm.types.utils.ModelResponse = litellm.completion(  # type: ignore
                 model=self.config.name,
@@ -177,34 +150,22 @@ class LiteLLMModel(AbstractModel):
             if "is longer than the model's context length" in str(e):
                 raise ContextWindowExceededError from e
             raise
+
         self.logger.info(f"Response: {response}")
-        try:
-            cost = litellm.cost_calculator.completion_cost(response)
-        except Exception as e:
-            self.logger.debug(f"Error calculating cost: {e}, setting cost to 0.")
-            if (
-                self.config.per_instance_cost_limit > 0
-                or self.config.total_cost_limit > 0
-            ):
-                msg = (
-                    f"Error calculating cost: {e} for your model {self.config.name}. If this is ok "
-                    "(local models, etc.), please make sure you set `per_instance_cost_limit` and "
-                    "`total_cost_limit` to 0 to disable this safety check."
-                )
-                self.logger.error(msg)
-                raise ModelConfigurationError(msg)
-            cost = 0
+
         choices: litellm.types.utils.Choices = response.choices  # type: ignore
+
         n_choices = n if n is not None else 1
+
         outputs = []
-        output_tokens = 0
+        output_tokens = response.usage.completion_tokens
+        input_tokens = response.usage.prompt_tokens
         tool_names = None
+
         for i in range(n_choices):
             output = choices[i].message.content or ""
-            output_tokens += litellm.utils.token_counter(
-                text=output, model=self.config.name
-            )
             output_dict = {"message": output}
+
             if self.tools.use_function_calling:
                 if response.choices[i].message.tool_calls:  # type: ignore
                     tool_calls = [
@@ -214,14 +175,23 @@ class LiteLLMModel(AbstractModel):
                     tool_names = [call["function"]["name"] for call in tool_calls]
                 else:
                     tool_calls = []
+
                 output_dict["tool_calls"] = tool_calls
+
             outputs.append(output_dict)
+
+        input_cost_for_turn = (self.config.input_cost * input_tokens) / MILLION
+        output_cost_for_turn = (self.config.output_cost * output_tokens) / MILLION
+
+        total_cost_for_turn = input_cost_for_turn + output_cost_for_turn
+
         self._update_stats(
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            cost=cost,
+            cost=total_cost_for_turn,
             tool_names=tool_names,
         )
+
         return outputs
 
     def _single_query_streaming(
@@ -326,14 +296,13 @@ class LiteLLMModel(AbstractModel):
             for _ in range(n):
                 outputs.extend(self._single_query_streaming(messages))
             return outputs
-        else:
-            if n is None:
-                return self._single_query(messages, temperature=temperature)
-            outputs = []
-            # not needed for openai, but oh well.
-            for _ in range(n):
-                outputs.extend(self._single_query(messages))
-            return outputs
+
+        if n is None:
+            return self._single_query(messages, temperature=temperature)
+        outputs = []
+        for _ in range(n):
+            outputs.extend(self._single_query(messages))
+        return outputs
 
     def query(
         self, history: History, n: int = 1, temperature: float | None = None
@@ -420,6 +389,5 @@ class LiteLLMModel(AbstractModel):
             if "cache_control" in history_item:
                 message["cache_control"] = history_item["cache_control"]
             messages.append(message)
-        n_cache_control = str(messages).count("cache_control")
-        self.logger.debug(f"n_cache_control: {n_cache_control}")
+
         return messages

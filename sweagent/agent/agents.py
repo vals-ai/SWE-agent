@@ -388,9 +388,9 @@ class RetryAgent(AbstractAgent):
                 best_attempt_idx = 0
             data |= copy.deepcopy(self._attempt_data[best_attempt_idx])  # type: ignore
             data["info"]["best_attempt_idx"] = best_attempt_idx
-            data["info"][
-                "rloop_model_stats"
-            ] = self._rloop.review_model_stats.model_dump()
+            data["info"]["rloop_model_stats"] = (
+                self._rloop.review_model_stats.model_dump()
+            )
             # Overwrite model stats with total stats
             data["info"]["model_stats"] = self._total_instance_stats.model_dump()
             if isinstance(self._rloop, ChooserRetryLoop):
@@ -570,7 +570,9 @@ class DefaultAgent(AbstractAgent):
         """Return the history of the agent for this attempt since the last reset,
         processed through all history processors.
         """
-        filtered_history = [entry for entry in self.history if entry["agent"] == self.name]  # type: ignore
+        filtered_history = [
+            entry for entry in self.history if entry["agent"] == self.name
+        ]  # type: ignore
 
         # Chain the history processors
         messages = filtered_history
@@ -746,9 +748,9 @@ class DefaultAgent(AbstractAgent):
             "message_type": "observation",
         }
         if tool_call_ids:
-            assert (
-                len(tool_call_ids) == 1
-            ), "This should be ensured by the FunctionCalling parse method"
+            assert len(tool_call_ids) == 1, (
+                "This should be ensured by the FunctionCalling parse method"
+            )
             history_item["role"] = "tool"
             history_item["tool_call_ids"] = tool_call_ids
         self._append_history(history_item)
@@ -1196,7 +1198,6 @@ class DefaultAgent(AbstractAgent):
 
         n_format_fails = 0
         while n_format_fails < self.max_requeries:
-
             try:
                 if (
                     self.max_steps is not None
@@ -1364,14 +1365,15 @@ class DefaultAgent(AbstractAgent):
 
         n_step = len(self.trajectory) + 1
         self.logger.info("=" * 25 + f" STEP {n_step} " + "=" * 25)
-        self.logger.info(f"Max steps: {self.max_steps}")
 
         step_output = self.forward_with_handling(self.messages)
         self.add_step_to_history(step_output)
 
         self.info["submission"] = step_output.submission
         self.info["exit_status"] = step_output.exit_status  # type: ignore
-        self.info.update(self._get_edited_files_with_context(patch=step_output.submission or ""))  # type: ignore
+        self.info.update(
+            self._get_edited_files_with_context(patch=step_output.submission or "")
+        )  # type: ignore
         self.info["model_stats"] = self.model.stats.model_dump()
 
         self.add_step_to_trajectory(step_output)
