@@ -43,7 +43,6 @@ MILLION = 1000000
 
 class TogetherModel(AbstractModel):
     def __init__(self, args: GenericAPIModelConfig, tools: ToolConfig):
-        """Model served by Together AI."""
         self.config: GenericAPIModelConfig = args.model_copy(deep=True)
         self.stats = InstanceStats()
         self.tools = tools
@@ -54,18 +53,18 @@ class TogetherModel(AbstractModel):
         if self.config.max_input_tokens is not None:
             self.model_max_input_tokens = self.config.max_input_tokens
         else:
-            self.logger.error(
-                f"No max input tokens found for model {self.config.name!r}."
-            )
-            raise ModelConfigurationError()
+            msg = f"No max input tokens found for model {self.config.name!r}."
+
+            self.logger.error(msg)
+            raise ModelConfigurationError(msg)
 
         if self.config.max_output_tokens is not None:
             self.model_max_output_tokens = self.config.max_output_tokens
         else:
-            self.logger.error(
-                f"No max output tokens found for model {self.config.name!r}."
-            )
-            raise ModelConfigurationError()
+            msg = f"No max output tokens found for model {self.config.name!r}."
+
+            self.logger.error(msg)
+            raise ModelConfigurationError(msg)
 
     @property
     def instance_cost_limit(self) -> float:
@@ -92,14 +91,14 @@ class TogetherModel(AbstractModel):
             self.stats.update_tool_call_definition(tool_names)
 
         if 0 < self.config.per_instance_call_limit < self.stats.api_calls:
-            self.logger.warning(
-                f"API calls {self.stats.api_calls} exceeds limit {self.config.per_instance_call_limit}"
-            )
-            msg = "Per instance call limit exceeded"
+            msg = f"API calls {self.stats.api_calls} exceeds limit {self.config.per_instance_call_limit}"
+
+            self.logger.warning(msg)
             raise InstanceCallLimitExceededError(msg)
 
     def _sleep(self) -> None:
         elapsed_time = time.time() - GLOBAL_STATS.last_query_timestamp
+
         if elapsed_time < self.config.delay:
             time.sleep(self.config.delay - elapsed_time)
         with GLOBAL_STATS_LOCK:
@@ -283,7 +282,7 @@ class TogetherModel(AbstractModel):
         n: int | None = None,
         temperature: float | None = None,
     ) -> list[dict]:
-        # Use streaming for models that require it or if streaming is preferred
+        # If specified we will use the streaming api
         if self.config.completion_kwargs.get("stream", False):
             if n is None:
                 return self._single_query_streaming(messages, temperature=temperature)
@@ -293,13 +292,14 @@ class TogetherModel(AbstractModel):
                     self._single_query_streaming(messages, temperature=temperature)
                 )
             return outputs
-        else:
-            if n is None:
-                return self._single_query(messages, temperature=temperature)
-            outputs = []
-            for _ in range(n):
-                outputs.extend(self._single_query(messages, temperature=temperature))
-            return outputs
+
+        # Default is going to use the non-streaming api
+        if n is None:
+            return self._single_query(messages, temperature=temperature)
+        outputs = []
+        for _ in range(n):
+            outputs.extend(self._single_query(messages, temperature=temperature))
+        return outputs
 
     def query(
         self, history: History, n: int = 1, temperature: float | None = None
