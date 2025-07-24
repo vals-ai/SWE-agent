@@ -486,24 +486,18 @@ class RunBatch:
 
             return False, None
 
-        try:
-            data = json.loads(content)
-            exit_status = data["info"].get("exit_status", None)
-            if exit_status == "early_exit" or exit_status is None:
-                self.logger.warning(
-                    "Found existing trajectory with no exit status: %s. Removing.",
-                    log_path,
-                )
+        bad_exit_statuses = ["exit_error", "early_exit"]
 
-                log_path.unlink()
+        data = json.loads(content)
+        exit_status = data.get("info", {}).get("exit_status", None)
 
-                return False, None
-        except Exception as e:
-            self.logger.error(
-                f"Failed to check existing trajectory: {log_path}: {e}. Removing."
+        if exit_status in bad_exit_statuses or exit_status is None:
+            self.logger.warning(
+                "Found existing trajectory with no exit status: %s. Removing.",
+                log_path,
             )
 
-            log_path.unlink()
+            log_path.unlink(missing_ok=True)
 
             return False, None
 
