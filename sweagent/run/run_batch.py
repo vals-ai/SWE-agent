@@ -214,7 +214,7 @@ class RunBatch:
         config.set_default_output_dir()
         config.output_dir.mkdir(parents=True, exist_ok=True)
         (config.output_dir / "run_batch.config.yaml").write_text(
-            yaml.dump(config.model_dump_json(), indent=2)
+            yaml.dump(config.model_dump(), indent=2)
         )
         logger = get_logger("run", emoji="🏃")
         logger.debug("Loading instances from %s", f"{config.instances!r}")
