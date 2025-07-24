@@ -461,8 +461,8 @@ class RunBatch:
         if not pred_content.strip():
             self.logger.warning("Found empty prediction: %s. Removing.", pred_path)
 
-            pred_path.unlink()
-            log_path.unlink()
+            pred_path.unlink(missing_ok=True)
+            log_path.unlink(missing_ok=True)
 
             return False, None
 
@@ -473,8 +473,8 @@ class RunBatch:
                 pred_path,
             )
 
-            pred_path.unlink()
-            log_path.unlink()
+            pred_path.unlink(missing_ok=True)
+            log_path.unlink(missing_ok=True)
 
             return False, None
 
@@ -482,7 +482,7 @@ class RunBatch:
         if not content.strip():
             self.logger.warning("Found empty trajectory: %s. Removing.", log_path)
 
-            log_path.unlink()
+            log_path.unlink(missing_ok=True)
 
             return False, None
 
@@ -493,7 +493,8 @@ class RunBatch:
 
         if exit_status in bad_exit_statuses or exit_status is None:
             self.logger.warning(
-                "Found existing trajectory with no exit status: %s. Removing.",
+                "Exit status is %s. Removing %s.",
+                exit_status,
                 log_path,
             )
 
