@@ -488,10 +488,20 @@ class RunBatch:
 
         bad_exit_statuses = ["exit_error", "early_exit"]
 
-        data = json.loads(content)
+        try:
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            self.logger.warning("Found invalid trajectory: %s. Removing.", log_path)
+
+            log_path.unlink(missing_ok=True)
+
+            return False, None
+
         exit_status = data.get("info", {}).get("exit_status", None)
 
-        if exit_status in bad_exit_statuses or exit_status is None:
+        if exit_status is None or any(
+            bad_status in str(exit_status) for bad_status in bad_exit_statuses
+        ):
             self.logger.warning(
                 "Exit status is %s. Removing %s.",
                 exit_status,
