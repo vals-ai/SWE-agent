@@ -7,7 +7,7 @@ trajectories/**
 data/**
 *.env
 !tools/*
-src/
+
 # -------- automatically generated files --------
 
 # Byte-compiled / optimized / DLL files

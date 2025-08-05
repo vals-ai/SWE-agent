@@ -6,7 +6,7 @@ because of circular dependencies.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Dict, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict
@@ -76,7 +76,7 @@ Trajectory = list[TrajectoryStep]
 # todo: Make this actually have the dataclasses instead of dict versions
 class AgentInfo(TypedDict, total=False):
     # same as `APIStats` from models.py
-    model_stats: dict[str, float | int | dict[str, float]]
+    model_stats: dict[str, float]
     exit_status: str | None
     submission: str | None
     # same as `ReviewerResult`

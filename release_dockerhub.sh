@@ -52,12 +52,12 @@ trap on_error ERR
 echo "------------------------------------------"
 echo "Building swe-agent"
 echo "------------------------------------------"
-docker buildx build --no-cache --platform=linux/amd64,linux/arm64 -t ${USER}/swe-agent:${VERSION_STR} -f docker/swe.Dockerfile --push .
+docker buildx build  --platform=linux/amd64,linux/arm64  -t ${USER}/swe-agent:${VERSION_STR} -f docker/swe.Dockerfile --push .
 echo "🔥 swe-agent pushed to dockerhub"
 echo "------------------------------------------"
 echo "Building swe-agent-run"
 echo "------------------------------------------"
-docker buildx build --no-cache --platform=linux/amd64,linux/arm64 -t ${USER}/swe-agent-run:${VERSION_STR} --push .
+docker buildx build  --platform=linux/amd64,linux/arm64 -t ${USER}/swe-agent-run:${VERSION_STR} --push .
 echo "🔥 swe-agent-run pushed to dockerhub"
 echo "------------------------------------------"
 echo "Building of all images done"
