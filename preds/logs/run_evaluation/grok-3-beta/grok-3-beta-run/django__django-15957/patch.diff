@@ -1,0 +1,53 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index be0deb90b0..08e70dceb4 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -2145,16 +2145,18 @@ class Prefetch:
+         self.prefetch_through = lookup
+         # `prefetch_to` is the path to the attribute that stores the result.
+         self.prefetch_to = lookup
+-        if queryset is not None and (
+-            isinstance(queryset, RawQuerySet)
+-            or (
++        if queryset is not None:
++            if isinstance(queryset, RawQuerySet) or (
+                 hasattr(queryset, "_iterable_class")
+                 and not issubclass(queryset._iterable_class, ModelIterable)
+-            )
+-        ):
+-            raise ValueError(
+-                "Prefetch querysets cannot use raw(), values(), and values_list()."
+-            )
++            ):
++                raise ValueError(
++                    "Prefetch querysets cannot use raw(), values(), and values_list()."
++                )
++            elif hasattr(queryset, 'query') and queryset.query.is_sliced:
++                raise ValueError(
++                    "Prefetch querysets cannot be sliced. Consider removing the slice or using a different approach to limit the results."
++                )
+         if to_attr:
+             self.prefetch_to = LOOKUP_SEP.join(
+                 lookup.split(LOOKUP_SEP)[:-1] + [to_attr]
+diff --git a/reproduce_prefetch_slice.py b/reproduce_prefetch_slice.py
+new file mode 100644
+index 0000000000..f513192061
+--- /dev/null
++++ b/reproduce_prefetch_slice.py
+@@ -0,0 +1,15 @@
++
++from django.db.models import Prefetch
++from myapp.models import Category, Post
++
++try:
++    categories = Category.objects.prefetch_related(Prefetch(
++        'post_set',
++        queryset=Post.objects.all()[:3],
++        to_attr='example_posts',
++    ))
++    print("Script completed successfully, no errors.")
++except AssertionError as e:
++    print("AssertionError: ", str(e))
++except ValueError as e:
++    print("ValueError: ", str(e))
+\ No newline at end of file

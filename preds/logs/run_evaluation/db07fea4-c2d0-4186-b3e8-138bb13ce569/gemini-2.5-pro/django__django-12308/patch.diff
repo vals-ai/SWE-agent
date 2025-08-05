@@ -1,0 +1,88 @@
+diff --git a/django/contrib/admin/utils.py b/django/contrib/admin/utils.py
+index e4ddc8f017..2372acfc4b 100644
+--- a/django/contrib/admin/utils.py
++++ b/django/contrib/admin/utils.py
+@@ -2,7 +2,8 @@ import datetime
+ import decimal
+ from collections import defaultdict
+ 
+-from django.core.exceptions import FieldDoesNotExist
++from django.core.exceptions import FieldDoesNotExist, InvalidJSONInput
++from django.db.models import JSONField
+ from django.db import models, router
+ from django.db.models.constants import LOOKUP_SEP
+ from django.db.models.deletion import Collector
+@@ -398,6 +399,13 @@ def display_for_field(value, field, empty_value_display):
+         return formats.number_format(value)
+     elif isinstance(field, models.FileField) and value:
+         return format_html('<a href="{}">{}</a>', value.url, value)
++    elif isinstance(field, JSONField) and value is not None:
++        try:
++            # Use field's prepare_value to handle JSON serialization
++            return field.prepare_value(value)
++        except InvalidJSONInput:
++            # Display empty value if JSON is invalid (shouldn't happen in read-only)
++            return empty_value_display
+     else:
+         return display_for_value(value, empty_value_display)
+ 
+diff --git a/tests/admin_views/tests.py b/tests/admin_views/tests.py
+index f768172909..7164649ac6 100644
+--- a/tests/admin_views/tests.py
++++ b/tests/admin_views/tests.py
+@@ -21,6 +21,7 @@ from django.contrib.contenttypes.models import ContentType
+ from django.core import mail
+ from django.core.checks import Error
+ from django.core.files import temp as tempfile
++from django.db import models
+ from django.forms.utils import ErrorList
+ from django.template.response import TemplateResponse
+ from django.test import (
+@@ -61,6 +62,12 @@ for a staff account. Note that both fields may be case-sensitive."
+ 
+ MULTIPART_ENCTYPE = 'enctype="multipart/form-data"'
+ 
++class JsonModel(models.Model):
++    data = models.JSONField()
++
++class JsonModelAdmin(ModelAdmin):
++    readonly_fields = ('data',)
++
+ 
+ class AdminFieldExtractionMixin:
+     """
+@@ -127,6 +134,7 @@ class AdminViewBasicTestCase(TestCase):
+         cls.cx1 = ChapterXtra1.objects.create(chap=cls.chap1, xtra='ChapterXtra1 1')
+         cls.cx2 = ChapterXtra1.objects.create(chap=cls.chap3, xtra='ChapterXtra1 2')
+         Actor.objects.create(name='Palin', age=27)
++        site.register(JsonModel, JsonModelAdmin)
+ 
+         # Post data for edit inline
+         cls.inline_post_data = {
+@@ -6046,6 +6054,26 @@ class AdminKeepChangeListFiltersTests(TestCase):
+                 )
+ 
+ 
++    def test_readonly_jsonfield_display(self):
++        """
++        Readonly JSONField displays valid JSON, not Python repr.
++        """
++        # Create an object with JSON data
++        json_data = {"key": "value", "int": 1, "bool": True, "list": [1, "two"]}
++        obj = JsonModel.objects.create(data=json_data)
++        # Get the change view URL for the object
++        change_url = reverse('admin:admin_views_jsonmodel_change', args=[obj.pk], current_app=self.admin_site.name)
++        response = self.client.get(change_url)
++        self.assertEqual(response.status_code, 200)
++        # Check that the displayed value is the JSON string representation
++        # Need to find the div containing the readonly field
++        # The structure is usually <div class="readonly">...</div>
++        expected_json_str = '{\"key\": \"value\", \"int\": 1, \"bool\": true, \"list\": [1, \"two\"]}'
++        # Use assertContains to check for the specific div content
++        self.assertContains(response, f'<div class="readonly">{expected_json_str}</div>')
++        # Also check that the Python repr is NOT present
++        self.assertNotContains(response, str(json_data))
++
+ class NamespacedAdminKeepChangeListFiltersTests(AdminKeepChangeListFiltersTests):
+     admin_site = site2
+ 

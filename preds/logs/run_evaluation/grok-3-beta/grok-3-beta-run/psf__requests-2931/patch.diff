@@ -1,0 +1,43 @@
+diff --git a/additional_test.py b/additional_test.py
+new file mode 100644
+index 00000000..3864344c
+--- /dev/null
++++ b/additional_test.py
+@@ -0,0 +1,12 @@
++
++import requests
++
++# Test with different UTF-8 encoded string
++response = requests.put("http://httpbin.org/put", data=u"äöü".encode("utf-8"))
++print("Test 1 completed successfully.")
++
++# Test with a longer string
++response = requests.put("http://httpbin.org/put", data=u"Hello, 世界!".encode("utf-8"))
++print("Test 2 completed successfully.")
++
++print("All tests completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..fe515bb2
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,4 @@
++
++import requests
++requests.put("http://httpbin.org/put", data=u"ööö".encode("utf-8"))
++print("Script completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/requests/utils.py b/requests/utils.py
+index 132cd2b5..fbed39b8 100644
+--- a/requests/utils.py
++++ b/requests/utils.py
+@@ -693,6 +693,8 @@ def to_native_string(string, encoding='ascii'):
+ 
+     if isinstance(string, builtin_str):
+         out = string
++    elif isinstance(string, bytes) and not is_py2:
++        out = string
+     else:
+         if is_py2:
+             out = string.encode(encoding)

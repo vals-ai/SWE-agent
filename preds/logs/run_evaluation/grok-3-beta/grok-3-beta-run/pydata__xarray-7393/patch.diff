@@ -1,0 +1,71 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..f319ae28
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,6 @@
++
++import xarray as xr
++import numpy as np
++
++ds = xr.Dataset(coords={'a': np.array([0], dtype='i4')})
++print(ds['a'].values.dtype == ds.stack(b=('a',))['a'].values.dtype)
+\ No newline at end of file
+diff --git a/test_dtypes.py b/test_dtypes.py
+new file mode 100644
+index 00000000..9a7389eb
+--- /dev/null
++++ b/test_dtypes.py
+@@ -0,0 +1,24 @@
++
++import xarray as xr
++import numpy as np
++
++# Test different integer dtypes
++ds_int8 = xr.Dataset(coords={'a': np.array([0], dtype='i1')})
++print("int8:", ds_int8['a'].values.dtype == ds_int8.stack(b=('a',))['a'].values.dtype)
++
++ds_int16 = xr.Dataset(coords={'a': np.array([0], dtype='i2')})
++print("int16:", ds_int16['a'].values.dtype == ds_int16.stack(b=('a',))['a'].values.dtype)
++
++ds_int32 = xr.Dataset(coords={'a': np.array([0], dtype='i4')})
++print("int32:", ds_int32['a'].values.dtype == ds_int32.stack(b=('a',))['a'].values.dtype)
++
++ds_int64 = xr.Dataset(coords={'a': np.array([0], dtype='i8')})
++print("int64:", ds_int64['a'].values.dtype == ds_int64.stack(b=('a',))['a'].values.dtype)
++
++# Test with multiple coordinates
++ds_multi = xr.Dataset(coords={'a': np.array([0, 1], dtype='i4'), 'b': np.array([10, 20], dtype='i2')})
++stacked = ds_multi.stack(c=('a', 'b'))
++print("multi-coord a:", ds_multi['a'].values.dtype == stacked['a'].values.dtype)
++print("multi-coord b:", ds_multi['b'].values.dtype == stacked['b'].values.dtype)
++
++print("All tests completed.")
+\ No newline at end of file
+diff --git a/xarray/core/indexes.py b/xarray/core/indexes.py
+index f3f03c94..7bca2c8d 100644
+--- a/xarray/core/indexes.py
++++ b/xarray/core/indexes.py
+@@ -711,6 +711,8 @@ class PandasMultiIndex(PandasIndex):
+         labels = [x.ravel() for x in labels_mesh]
+ 
+         index = pd.MultiIndex(levels, labels, sortorder=0, names=variables.keys())
++        # Note: factorize might return codes as int64, potentially changing dtype of coordinates.
++        # Consider preserving original dtype if possible in future updates.
+         level_coords_dtype = {k: var.dtype for k, var in variables.items()}
+ 
+         return cls(index, dim, level_coords_dtype=level_coords_dtype)
+diff --git a/xarray/core/indexing.py b/xarray/core/indexing.py
+index ba937183..d6f9ffd6 100644
+--- a/xarray/core/indexing.py
++++ b/xarray/core/indexing.py
+@@ -1532,7 +1532,8 @@ class PandasMultiIndexingAdapter(PandasIndexingAdapter):
+ 
+     def __array__(self, dtype: DTypeLike = None) -> np.ndarray:
+         if self.level is not None:
+-            return self.array.get_level_values(self.level).values
++            values = self.array.get_level_values(self.level).values
++            return values.astype(self.dtype) if self.dtype is not None else values
+         else:
+             return super().__array__(dtype)
+ 

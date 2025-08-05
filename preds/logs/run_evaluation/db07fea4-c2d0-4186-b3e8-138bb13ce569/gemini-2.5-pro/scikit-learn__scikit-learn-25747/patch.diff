@@ -1,0 +1,99 @@
+diff --git a/sklearn/pipeline.py b/sklearn/pipeline.py
+index 94d9465d7..560b7cd7d 100644
+--- a/sklearn/pipeline.py
++++ b/sklearn/pipeline.py
+@@ -1280,7 +1280,17 @@ class FeatureUnion(TransformerMixin, _BaseComposition):
+         config = _get_output_config("transform", self)
+         if config["dense"] == "pandas" and all(hasattr(X, "iloc") for X in Xs):
+             pd = check_pandas_support("transform")
+-            return pd.concat(Xs, axis=1)
++            # Prepend transformer names to column names
++            Xs_pd = []
++            # Assuming Xs is in the same order as _iter() results
++            for (name, _, _), X_res in zip(self._iter(), Xs):
++                # Check if X_res is a DataFrame and has columns
++                if hasattr(X_res, "columns"):
++                    # Create new column names with prefix
++                    new_columns = [f"{name}__{col}" for col in X_res.columns]
++                    X_res.columns = new_columns
++                Xs_pd.append(X_res)
++            return pd.concat(Xs_pd, axis=1)
+ 
+         if any(sparse.issparse(f) for f in Xs):
+             Xs = sparse.hstack(Xs).tocsr()
+diff --git a/sklearn/tests/test_pipeline.py b/sklearn/tests/test_pipeline.py
+index fa7fa2ad2..00bb79d44 100644
+--- a/sklearn/tests/test_pipeline.py
++++ b/sklearn/tests/test_pipeline.py
+@@ -22,6 +22,7 @@ from sklearn.utils._testing import (
+ )
+ from sklearn.exceptions import NotFittedError
+ from sklearn.model_selection import train_test_split
++from sklearn import set_config
+ from sklearn.utils.validation import check_is_fitted
+ from sklearn.base import clone, is_classifier, BaseEstimator, TransformerMixin
+ from sklearn.pipeline import Pipeline, FeatureUnion, make_pipeline, make_union
+@@ -1678,4 +1679,47 @@ def test_feature_union_feature_names_in_():
+     X_array = X.to_numpy()
+     union = FeatureUnion([("pass", "passthrough")])
+     union.fit(X_array)
++
++def test_feature_union_pandas_agg_output():
++    """Check FeatureUnion works with pandas output and aggregation.
++
++    Non-regression test for gh-25481.
++    """
++    pd = pytest.importorskip("pandas")
++
++    class AggTransformer(BaseEstimator, TransformerMixin):
++        def fit(self, X, y=None):
++            return self
++
++        def transform(self, X):
++            # Simple aggregation: sum values per group
++            return X.groupby("group")["value"].sum().to_frame()
++
++    # Create sample data
++    data = pd.DataFrame({
++        "value": [1, 2, 3, 4, 5, 6],
++        "group": ["A", "A", "B", "B", "C", "C"]
++    })
++
++    # Create FeatureUnion
++    union = make_union(AggTransformer())
++
++    # Test with default output (numpy)
++    set_config(transform_output="default")
++    result_default = union.fit_transform(data)
++    expected_default = np.array([[3], [7], [11]])
++    assert_array_equal(result_default, expected_default)
++
++    # Test with pandas output
++    set_config(transform_output="pandas")
++    result_pandas = union.fit_transform(data)
++
++    # Expected pandas output
++    expected_index = pd.Index(["A", "B", "C"], name="group")
++    expected_pandas = pd.DataFrame({"aggtransformer__value": [3, 7, 11]}, index=expected_index)
++
++    pd.testing.assert_frame_equal(result_pandas, expected_pandas)
++
++    # Reset config
++    set_config(transform_output="default")
+     assert not hasattr(union, "feature_names_in_")
+diff --git a/sklearn/utils/_set_output.py b/sklearn/utils/_set_output.py
+index 335773c6a..108faacb6 100644
+--- a/sklearn/utils/_set_output.py
++++ b/sklearn/utils/_set_output.py
+@@ -56,7 +56,10 @@ def _wrap_in_pandas_container(
+         if columns is not None:
+             data_to_wrap.columns = columns
+         if index is not None:
+-            data_to_wrap.index = index
++            # Only set the index if the lengths match.
++            # Otherwise, assume the transformer returned a meaningful index.
++            if len(index) == len(data_to_wrap.index):
++                data_to_wrap.index = index
+         return data_to_wrap
+ 
+     return pd.DataFrame(data_to_wrap, index=index, columns=columns)

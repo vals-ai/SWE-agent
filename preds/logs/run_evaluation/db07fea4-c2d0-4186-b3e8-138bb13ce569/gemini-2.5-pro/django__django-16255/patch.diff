@@ -1,0 +1,85 @@
+diff --git a/django/contrib/sitemaps/__init__.py b/django/contrib/sitemaps/__init__.py
+index 27756d9d96..b40ad806ed 100644
+--- a/django/contrib/sitemaps/__init__.py
++++ b/django/contrib/sitemaps/__init__.py
+@@ -168,7 +168,7 @@ class Sitemap:
+         if callable(self.lastmod):
+             try:
+                 return max([self.lastmod(item) for item in self.items()])
+-            except TypeError:
++            except (TypeError, ValueError):
+                 return None
+         else:
+             return self.lastmod
+diff --git a/tests/sitemaps_tests/test_http.py b/tests/sitemaps_tests/test_http.py
+index 4a269b8737..4cd9e03afc 100644
+--- a/tests/sitemaps_tests/test_http.py
++++ b/tests/sitemaps_tests/test_http.py
+@@ -1,4 +1,5 @@
+ import os
++from datetime import datetime
+ from datetime import date
+ 
+ from django.contrib.sitemaps import Sitemap
+@@ -333,6 +334,18 @@ class HTTPSitemapTests(SitemapTestsBase):
+         response = self.client.get("/empty/sitemap.xml")
+         self.assertEqual(response.status_code, 200)
+ 
++    def test_empty_sitemap_callable_lastmod(self):
++        """
++        ValueError is not raised if a sitemap has a callable lastmod but no
++        items (#34735).
++        """
++        response = self.client.get("/empty-callable-lastmod/index.xml")
++        self.assertEqual(response.status_code, 200)
++        # Check that the <lastmod> tag is not present for the empty section
++        self.assertNotIn(
++            b"<lastmod>", response.content.split(b"empty-callable-lastmod")[1]
++        )
++
+     @override_settings(LANGUAGES=(("en", "English"), ("pt", "Portuguese")))
+     def test_simple_i18n_sitemap_index(self):
+         """
+diff --git a/tests/sitemaps_tests/urls/http.py b/tests/sitemaps_tests/urls/http.py
+index 9a468de476..fdd9adbddc 100644
+--- a/tests/sitemaps_tests/urls/http.py
++++ b/tests/sitemaps_tests/urls/http.py
+@@ -54,6 +54,15 @@ class EmptySitemap(Sitemap):
+     location = "/location/"
+ 
+ 
++class EmptySitemapWithCallableLastmod(Sitemap):
++    def items(self):
++        return []
++
++    def lastmod(self, item):
++        # This method will never be called if items() is empty,
++        # but it needs to exist and be callable for the test scenario.
++        return datetime(2023, 1, 1)
++
+ class FixedLastmodSitemap(SimpleSitemap):
+     lastmod = datetime(2013, 3, 13, 10, 0, 0)
+ 
+@@ -169,6 +178,9 @@ simple_sitemaps_paged = {
+ empty_sitemaps = {
+     "empty": EmptySitemap,
+ }
++empty_sitemaps_callable_lastmod = {
++    "empty-callable-lastmod": EmptySitemapWithCallableLastmod,
++}
+ 
+ fixed_lastmod_sitemaps = {
+     "fixed-lastmod": FixedLastmodSitemap,
+@@ -302,6 +314,12 @@ urlpatterns = [
+         {"sitemaps": empty_sitemaps},
+         name="django.contrib.sitemaps.views.sitemap",
+     ),
++    path(
++        "empty-callable-lastmod/index.xml",
++        views.index,
++        {"sitemaps": empty_sitemaps_callable_lastmod},
++        name="django.contrib.sitemaps.views.index",
++    ),
+     path(
+         "lastmod/sitemap.xml",
+         views.sitemap,

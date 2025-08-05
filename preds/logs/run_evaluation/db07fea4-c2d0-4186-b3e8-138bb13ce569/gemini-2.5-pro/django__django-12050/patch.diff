@@ -1,0 +1,65 @@
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index ea51912e8b..457e7c9787 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -1058,6 +1058,7 @@ class Query(BaseExpression):
+             value = value.resolve_expression(self, **kwargs)
+         elif isinstance(value, (list, tuple)):
+             # The items of the iterable may be expressions and therefore need
++            original_type = type(value)
+             # to be resolved independently.
+             resolved_values = []
+             for sub_value in value:
+@@ -1073,7 +1074,7 @@ class Query(BaseExpression):
+                         ))
+                 else:
+                     resolved_values.append(sub_value)
+-            value = tuple(resolved_values)
++            value = original_type(resolved_values)
+         return value
+ 
+     def solve_lookup_type(self, lookup):
+diff --git a/tests/queries/test_query.py b/tests/queries/test_query.py
+index f0d3a6260a..260cfa72ec 100644
+--- a/tests/queries/test_query.py
++++ b/tests/queries/test_query.py
+@@ -112,4 +112,39 @@ class TestQuery(SimpleTestCase):
+         query.add_select_related(['creator'])
+         clone = query.clone()
+         clone.add_select_related(['note', 'creator__extra'])
++
++    def test_resolve_lookup_value_iterable_type(self):
++        """
++        resolve_lookup_value() should preserve the type of iterables
++        (list vs tuple).
++        """
++        query = Query(Author)
++        # Simulate a lookup where the value is a list
++        q_list = Q(name__in=['test1', 'test2'])
++        where_list = query.build_where(q_list)
++        lookup_list = where_list.children[0]
++        self.assertIsInstance(lookup_list.rhs, list)
++        self.assertEqual(lookup_list.rhs, ['test1', 'test2'])
++
++        # Simulate a lookup where the value is a tuple
++        q_tuple = Q(name__in=('test1', 'test2'))
++        where_tuple = query.build_where(q_tuple)
++        lookup_tuple = where_tuple.children[0]
++        self.assertIsInstance(lookup_tuple.rhs, tuple)
++        self.assertEqual(lookup_tuple.rhs, ('test1', 'test2'))
++
++    def test_resolve_lookup_value_direct(self):
++        """Directly test resolve_lookup_value type preservation."""
++        query = Query(Author)
++        field = Author._meta.get_field('name')
++        # Test list input
++        list_val = ['a', 'b']
++        resolved_list = query.resolve_lookup_value(list_val, [], field, 'exact')
++        self.assertIsInstance(resolved_list, list)
++        self.assertEqual(resolved_list, ['a', 'b'])
++        # Test tuple input
++        tuple_val = ('a', 'b')
++        resolved_tuple = query.resolve_lookup_value(tuple_val, [], field, 'exact')
++        self.assertIsInstance(resolved_tuple, tuple)
++        self.assertEqual(resolved_tuple, ('a', 'b'))
+         self.assertEqual(query.select_related, {'creator': {}})

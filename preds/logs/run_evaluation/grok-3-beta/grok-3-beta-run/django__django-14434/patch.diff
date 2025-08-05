@@ -1,0 +1,14 @@
+diff --git a/django/db/backends/ddl_references.py b/django/db/backends/ddl_references.py
+index c06386a2fa..337d0b4679 100644
+--- a/django/db/backends/ddl_references.py
++++ b/django/db/backends/ddl_references.py
+@@ -61,7 +61,8 @@ class TableColumns(Table):
+     """Base class for references to multiple columns of a table."""
+ 
+     def __init__(self, table, columns):
+-        self.table = table
++        # Ensure self.table is a string, not a Table object
++        self.table = table.table if isinstance(table, Table) else table
+         self.columns = columns
+ 
+     def references_column(self, table, column):

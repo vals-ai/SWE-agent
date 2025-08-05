@@ -1,0 +1,119 @@
+diff --git a/db.sqlite3 b/db.sqlite3
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/django/db/models/sql/query.py b/django/db/models/sql/query.py
+index b99f03cd88..649aa0fd5f 100644
+--- a/django/db/models/sql/query.py
++++ b/django/db/models/sql/query.py
+@@ -1338,7 +1338,8 @@ class Query(BaseExpression):
+             if isinstance(child, Node):
+                 child_clause, needed_inner = self._add_q(
+                     child, used_aliases, branch_negated,
+-                    current_negated, allow_joins, split_subq)
++                    current_negated, allow_joins, split_subq,
++                    simple_col=simple_col)
+                 joinpromoter.add_votes(needed_inner)
+             else:
+                 child_clause, needed_inner = self.build_filter(
+diff --git a/manage.py b/manage.py
+new file mode 100755
+index 0000000000..fb52456bdf
+--- /dev/null
++++ b/manage.py
+@@ -0,0 +1,21 @@
++#!/usr/bin/env python
++"""Django's command-line utility for administrative tasks."""
++import os
++import sys
++
++
++def main():
++    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'testproject.settings')
++    try:
++        from django.core.management import execute_from_command_line
++    except ImportError as exc:
++        raise ImportError(
++            "Couldn't import Django. Are you sure it's installed and "
++            "available on your PYTHONPATH environment variable? Did you "
++            "forget to activate a virtual environment?"
++        ) from exc
++    execute_from_command_line(sys.argv)
++
++
++if __name__ == '__main__':
++    main()
+diff --git a/tests/migrations/test_operations.py b/tests/migrations/test_operations.py
+index 520a2b2204..14511f07bc 100644
+--- a/tests/migrations/test_operations.py
++++ b/tests/migrations/test_operations.py
+@@ -1898,6 +1898,70 @@ class OperationTests(OperationTestBase):
+         author = Author.objects.create(name='Albert', rebate='10%')
+         self.assertEqual(Author.objects.get(), author)
+ 
++    @skipUnlessDBFeature('supports_table_check_constraints')
++    def test_add_constraint_combined_q(self):
++        """
++        Test AddConstraint with a complex Q object (AND/OR combination)
++        to ensure correct SQL generation (no table aliases in CHECK).
++        """
++        app_label = 'test_addconstraint_combinedq'
++        # Define a model with a field and a flag
++        operations = [
++            migrations.CreateModel(
++                'MyModel',
++                fields=[
++                    ('id', models.AutoField(primary_key=True)),
++                    ('field_1', models.IntegerField(blank=True, null=True)),
++                    ('flag', models.BooleanField()),
++                ],
++            ),
++        ]
++        project_state = self.apply_operations(app_label, ProjectState(), operations)
++
++        # Define the complex check constraint
++        check = models.Q(
++            models.Q(flag__exact=True, field_1__isnull=False) |
++            models.Q(flag__exact=False)
++        )
++        constraint = models.CheckConstraint(
++            check=check, name='field_1_has_value_if_flag_set'
++        )
++        operation = migrations.AddConstraint('MyModel', constraint)
++
++        # Test state forwards
++        new_state = project_state.clone()
++        operation.state_forwards(app_label, new_state)
++        MyModel = new_state.apps.get_model(app_label, 'MyModel')
++        self.assertEqual(len(MyModel._meta.constraints), 1)
++
++        # Test database forwards (this is where SQLite would fail before the fix)
++        # We don't need to assert anything specific about the SQL, just that
++        # applying the migration doesn't raise an error.
++        with connection.schema_editor() as editor:
++            operation.database_forwards(app_label, editor, project_state, new_state)
++
++        # Verify the constraint works as expected
++        MyModel = new_state.apps.get_model(app_label, 'MyModel')
++        # Valid cases
++        MyModel.objects.create(flag=True, field_1=1)
++        MyModel.objects.create(flag=False, field_1=None)
++        MyModel.objects.create(flag=False, field_1=1) # field_1 can be set if flag is False
++        # Invalid case
++        with self.assertRaises(IntegrityError), transaction.atomic():
++            MyModel.objects.create(flag=True, field_1=None)
++
++        # Test database backwards
++        with connection.schema_editor() as editor:
++            operation.database_backwards(app_label, editor, new_state, project_state)
++        # Constraint should be gone, invalid case now works
++        MyModel.objects.create(flag=True, field_1=None)
++
++        # Test deconstruction
++        definition = operation.deconstruct()
++        self.assertEqual(definition[0], 'AddConstraint')
++        self.assertEqual(definition[1], [])
++        self.assertEqual(definition[2], {'model_name': 'MyModel', 'constraint': constraint})
++
+     @skipUnlessDBFeature('supports_table_check_constraints')
+     def test_remove_constraint(self):
+         project_state = self.set_up_test_model("test_removeconstraint", constraints=[

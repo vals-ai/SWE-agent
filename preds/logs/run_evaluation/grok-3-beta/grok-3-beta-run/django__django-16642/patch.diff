@@ -1,0 +1,70 @@
+diff --git a/django/http/response.py b/django/http/response.py
+index f62dec8ce9..d10c2059aa 100644
+--- a/django/http/response.py
++++ b/django/http/response.py
+@@ -612,6 +612,8 @@ class FileResponse(StreamingHttpResponse):
+                     "bzip2": "application/x-bzip",
+                     "gzip": "application/gzip",
+                     "xz": "application/x-xz",
++                    "br": "application/brotli",
++                    "compress": "application/x-compress"
+                 }.get(encoding, content_type)
+                 self.headers["Content-Type"] = (
+                     content_type or "application/octet-stream"
+diff --git a/reproduce_mime_type_issue.py b/reproduce_mime_type_issue.py
+new file mode 100644
+index 0000000000..25750f9179
+--- /dev/null
++++ b/reproduce_mime_type_issue.py
+@@ -0,0 +1,12 @@
++
++from starlette.responses import FileResponse
++
++# Test with .Z extension
++response_z = FileResponse(open('test.html.Z', 'rb'))
++print(f'Content-Type for .Z file: {response_z.headers.get("content-type")}')
++
++# Test with .br extension
++response_br = FileResponse(open('test.html.br', 'rb'))
++print(f'Content-Type for .br file: {response_br.headers.get("content-type")}')
++
++print('Script completed successfully, no errors.')
+\ No newline at end of file
+diff --git a/test.html.Z b/test.html.Z
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test.html.br b/test.html.br
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_mime_type_fix.py b/test_mime_type_fix.py
+new file mode 100644
+index 0000000000..0ff3fe4087
+--- /dev/null
++++ b/test_mime_type_fix.py
+@@ -0,0 +1,25 @@
++
++import mimetypes
++
++# Test MIME type guessing for .br and .Z files
++filename_br = 'test.html.br'
++filename_z = 'test.html.Z'
++
++content_type_br, encoding_br = mimetypes.guess_type(filename_br)
++content_type_z, encoding_z = mimetypes.guess_type(filename_z)
++
++# Simulate the mapping from FileResponse
++mapping = {
++    'bzip2': 'application/x-bzip',
++    'gzip': 'application/gzip',
++    'xz': 'application/x-xz',
++    'br': 'application/brotli',
++    'compress': 'application/x-compress'
++}
++
++final_type_br = mapping.get(encoding_br, content_type_br)
++final_type_z = mapping.get(encoding_z, content_type_z)
++
++print(f'Content-Type for {filename_br}: {final_type_br or "application/octet-stream"} (encoding: {encoding_br})')
++print(f'Content-Type for {filename_z}: {final_type_z or "application/octet-stream"} (encoding: {encoding_z})')
++print('Script completed successfully, no errors.')
+\ No newline at end of file

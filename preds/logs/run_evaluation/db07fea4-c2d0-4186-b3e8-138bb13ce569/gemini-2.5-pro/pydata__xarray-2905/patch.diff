@@ -1,0 +1,105 @@
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 00000000..8b9d04e5
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,24 @@
++
++import xarray as xr
++
++good_indexed, bad_indexed = xr.DataArray([None]), xr.DataArray([None])
++
++class HasValues(object):
++    values = 5
++    def __repr__(self):
++        return "<HasValues instance>"
++
++good_indexed.loc[{'dim_0': 0}] = set()
++bad_indexed.loc[{'dim_0': 0}] = HasValues()
++
++print("# good_indexed.values =>", good_indexed.values)
++print("# bad_indexed.values =>", bad_indexed.values)
++
++# Add a check for the expected output
++expected_bad_values = "<HasValues instance>"
++actual_bad_value_repr = repr(bad_indexed.values[0])
++
++if actual_bad_value_repr == expected_bad_values:
++    print("\nScript completed successfully, no errors.")
++else:
++    print(f"\nError: bad_indexed.values[0] is {actual_bad_value_repr}, expected {expected_bad_values}")
+\ No newline at end of file
+diff --git a/xarray/core/variable.py b/xarray/core/variable.py
+index 45553eb9..76b2da47 100644
+--- a/xarray/core/variable.py
++++ b/xarray/core/variable.py
+@@ -855,17 +855,29 @@ class Variable(
+         dims, index_tuple, new_order = self._broadcast_indexes(key)
+ 
+         if not isinstance(value, Variable):
+-            value = as_compatible_data(value)
+-            if value.ndim > len(dims):
+-                raise ValueError(
+-                    "shape mismatch: value array of shape %s could not be "
+-                    "broadcast to indexing result with %s dimensions"
+-                    % (value.shape, len(dims))
+-                )
+-            if value.ndim == 0:
+-                value = Variable((), value)
++            # Check if we should bypass as_compatible_data for object dtype
++            if (
++                self.dtype == object
++                and not isinstance(value, (np.ndarray, pd.Series, pd.Index, Sequence) + NON_NUMPY_SUPPORTED_ARRAY_TYPES)
++                and not is_duck_array(value) # Check for other duck arrays like sparse
++            ):
++                # Directly wrap the object without coercion
++                value_data = utils.to_0d_object_array(value)
++                value = Variable((), value_data)
+             else:
+-                value = Variable(dims[-value.ndim :], value)
++                # Original logic: use as_compatible_data for coercion
++                value_data = as_compatible_data(value)
++                if value_data.ndim > len(dims):
++                    raise ValueError(
++                        "shape mismatch: value array of shape %s could not be "
++                        "broadcast to indexing result with %s dimensions"
++                        % (value_data.shape, len(dims))
++                    )
++                if value_data.ndim == 0:
++                    value = Variable((), value_data)
++                else:
++                    value = Variable(dims[-value_data.ndim :], value_data)
++
+         # broadcast to become assignable
+         value = value.set_dims(dims).data
+ 
+diff --git a/xarray/tests/test_variable.py b/xarray/tests/test_variable.py
+index e1ae3e1f..09bccc28 100644
+--- a/xarray/tests/test_variable.py
++++ b/xarray/tests/test_variable.py
+@@ -1777,7 +1777,24 @@ class TestVariable(VariableSubclassobjects):
+         assert_array_equal(v[0], np.ones_like(v[0]))
+         v = Variable(["x", "y"], [[0, 3, 2], [3, 4, 5]])
+         v[dict(x=[True, False], y=[False, True, False])] = 1
+-        assert v[0, 1] == 1
++
++        # Test assigning object with 'values' attribute to object dtype array
++        class HasValues:
++            values = 5
++            def __eq__(self, other): # Add eq for assertion
++                return isinstance(other, HasValues)
++
++        v_obj = Variable(["x"], np.array([None], dtype=object))
++        obj_with_values = HasValues()
++        v_obj[0] = obj_with_values
++        assert v_obj.values[0] is obj_with_values # Check identity
++        assert v_obj.values[0] == obj_with_values # Check equality
++
++        # Test assigning a standard object (set)
++        v_obj_set = Variable(["x"], np.array([None], dtype=object))
++        my_set = {1, 2}
++        v_obj_set[0] = my_set
++        assert v_obj_set.values[0] is my_set
+ 
+     def test_setitem_fancy(self):
+         # assignment which should work as np.ndarray does

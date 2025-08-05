@@ -1,0 +1,83 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 000000000..66f306d90
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,21 @@
++
++from sklearn.datasets import make_classification
++from sklearn.feature_selection import SequentialFeatureSelector
++from sklearn.neighbors import KNeighborsClassifier
++from sklearn.model_selection import LeaveOneGroupOut
++
++import numpy as np
++
++X, y = make_classification()
++
++
++groups = np.zeros_like(y, dtype=int)
++groups[y.size//2:] = 1
++
++cv = LeaveOneGroupOut()
++splits = cv.split(X, y, groups=groups)
++
++clf = KNeighborsClassifier(n_neighbors=5)
++
++seq = SequentialFeatureSelector(clf, n_features_to_select=5, scoring='accuracy', cv=splits)
++seq.fit(X, y)
+\ No newline at end of file
+diff --git a/sklearn/feature_selection/_sequential.py b/sklearn/feature_selection/_sequential.py
+index e983c55de..16d05b187 100644
+--- a/sklearn/feature_selection/_sequential.py
++++ b/sklearn/feature_selection/_sequential.py
+@@ -183,7 +183,11 @@ class SequentialFeatureSelector(SelectorMixin, MetaEstimatorMixin, BaseEstimator
+         self.tol = tol
+         self.direction = direction
+         self.scoring = scoring
+-        self.cv = cv
++        # Convert cv to list if it's an iterable but not a CV splitter or integer
++        if not isinstance(cv, (int, type(None))) and hasattr(cv, '__iter__'):
++            self.cv = list(cv)
++        else:
++            self.cv = cv
+         self.n_jobs = n_jobs
+ 
+     def fit(self, X, y=None):
+diff --git a/test_sequential_cv.py b/test_sequential_cv.py
+new file mode 100644
+index 000000000..79b16a3ed
+--- /dev/null
++++ b/test_sequential_cv.py
+@@ -0,0 +1,31 @@
++
++from sklearn.datasets import make_classification
++from sklearn.feature_selection import SequentialFeatureSelector
++from sklearn.neighbors import KNeighborsClassifier
++from sklearn.model_selection import LeaveOneGroupOut, KFold
++
++import numpy as np
++
++# Test 1: Custom splits from LeaveOneGroupOut
++X, y = make_classification()
++groups = np.zeros_like(y, dtype=int)
++groups[y.size//2:] = 1
++cv = LeaveOneGroupOut()
++splits = cv.split(X, y, groups=groups)
++clf = KNeighborsClassifier(n_neighbors=5)
++seq = SequentialFeatureSelector(clf, n_features_to_select=5, scoring='accuracy', cv=splits)
++seq.fit(X, y)
++print("Test 1 passed: Custom splits from LeaveOneGroupOut")
++
++# Test 2: Integer CV value
++seq = SequentialFeatureSelector(clf, n_features_to_select=5, scoring='accuracy', cv=5)
++seq.fit(X, y)
++print("Test 2 passed: Integer CV value")
++
++# Test 3: CV splitter object
++cv = KFold(n_splits=3)
++seq = SequentialFeatureSelector(clf, n_features_to_select=5, scoring='accuracy', cv=cv)
++seq.fit(X, y)
++print("Test 3 passed: CV splitter object")
++
++print("All tests completed successfully, no errors.")
+\ No newline at end of file

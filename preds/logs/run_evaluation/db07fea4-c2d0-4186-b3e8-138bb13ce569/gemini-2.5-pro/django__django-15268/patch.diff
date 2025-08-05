@@ -1,0 +1,127 @@
+diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py
+index c120f5d32d..c0b421aa43 100644
+--- a/django/db/migrations/operations/models.py
++++ b/django/db/migrations/operations/models.py
+@@ -528,6 +528,27 @@ class AlterTogetherOptionOperation(ModelOptionOperation):
+     def migration_name_fragment(self):
+         return 'alter_%s_%s' % (self.name_lower, self.option_name)
+ 
++    def reduce(self, operation, app_label):
++        if (isinstance(operation, self.__class__) and
++                self.name_lower == operation.name_lower):
++            # If the two operations apply to the same model and same option:
++            if not self.option_value and not operation.option_value:
++                # Both remove the option (set()). Remove both.
++                return []
++            elif not operation.option_value:
++                # The second operation removes the option (set()).
++                # If the first op added/altered it, the net effect is
++                # removal compared to the state *before* the first op,
++                # so cancel both out.
++                return []
++            else:
++                # The second operation sets/alters the option. This overwrites
++                # whatever the first operation did (set, alter, or remove).
++                # The final state is represented by the second operation.
++                return [operation]
++        # If they don't match type/model, cannot reduce.
++        return False
++
+ 
+ class AlterUniqueTogether(AlterTogetherOptionOperation):
+     """
+@@ -537,7 +558,8 @@ class AlterUniqueTogether(AlterTogetherOptionOperation):
+     option_name = 'unique_together'
+ 
+     def __init__(self, name, unique_together):
+-        super().__init__(name, unique_together)
++        self.unique_together = set(normalize_together(unique_together))
++        super().__init__(name, self.unique_together)
+ 
+ 
+ class AlterIndexTogether(AlterTogetherOptionOperation):
+@@ -548,7 +570,8 @@ class AlterIndexTogether(AlterTogetherOptionOperation):
+     option_name = "index_together"
+ 
+     def __init__(self, name, index_together):
+-        super().__init__(name, index_together)
++        self.index_together = set(normalize_together(index_together))
++        super().__init__(name, self.index_together)
+ 
+ 
+ class AlterOrderWithRespectTo(ModelOptionOperation):
+diff --git a/tests/migrations/test_optimizer.py b/tests/migrations/test_optimizer.py
+index 0caaf66f9e..8a9bed49f3 100644
+--- a/tests/migrations/test_optimizer.py
++++ b/tests/migrations/test_optimizer.py
+@@ -865,6 +865,70 @@ class OptimizerTests(SimpleTestCase):
+             ],
+         )
+ 
++    def test_alter_together_remove_then_add(self):
++        """
++        AlterUniqueTogether/AlterIndexTogether removing the constraint (set())
++        followed by one adding it should optimize into a single operation.
++        """
++        self.assertOptimizesTo(
++            [
++                migrations.AlterUniqueTogether(
++                    name='MyModel',
++                    unique_together=set(),
++                ),
++                migrations.AlterIndexTogether(
++                    name='MyModel',
++                    index_together=set(),
++                ),
++                migrations.AlterUniqueTogether(
++                    name='MyModel',
++                    unique_together={("col",)},
++                ),
++                migrations.AlterIndexTogether(
++                    name='MyModel',
++                    index_together={("col",)},
++                ),
++            ],
++            [
++                migrations.AlterUniqueTogether(
++                    name='MyModel',
++                    unique_together={("col",)},
++                ),
++                migrations.AlterIndexTogether(
++                    name='MyModel',
++                    index_together={("col",)},
++                ),
++            ],
++        )
++
++    def test_alter_together_add_then_remove(self):
++        """
++        AlterUniqueTogether/AlterIndexTogether adding a constraint followed
++        by one removing it (set()) should optimize into nothing.
++        """
++        self.assertOptimizesTo(
++            [
++                migrations.AlterUniqueTogether(
++                    name='MyModel',
++                    unique_together={("col",)},
++                ),
++                migrations.AlterIndexTogether(
++                    name='MyModel',
++                    index_together={("col",)},
++                ),
++                migrations.AlterUniqueTogether(
++                    name='MyModel',
++                    unique_together=set(),
++                ),
++                migrations.AlterIndexTogether(
++                    name='MyModel',
++                    index_together=set(),
++                ),
++            ],
++            [],
++        )
++
++
+     def test_optimize_elidable_operation(self):
+         elidable_operation = operations.base.Operation()
+         elidable_operation.elidable = True

@@ -1,0 +1,72 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..f481ea89e0
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,8 @@
++
++from sympy import S
++
++print(f"S(0.0) == S.false: {S(0.0) == S.false}")
++print(f"S.false == S(0.0): {S.false == S(0.0)}")
++print(f"S(0) == S.false: {S(0) == S.false}")
++print(f"S.false == S(0): {S.false == S(0)}")
++print("\nScript completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/sympy/core/numbers.py b/sympy/core/numbers.py
+index 79f6a7d165..a2557d5251 100644
+--- a/sympy/core/numbers.py
++++ b/sympy/core/numbers.py
+@@ -1386,10 +1386,10 @@ def __eq__(self, other):
+             other = _sympify(other)
+         except SympifyError:
+             return NotImplemented
+-        if not self:
+-            return not other
+         if isinstance(other, Boolean):
+             return False
++        if not self:
++            return not other
+         if other.is_NumberSymbol:
+             if other.is_irrational:
+                 return False
+diff --git a/sympy/core/tests/test_logic.py b/sympy/core/tests/test_logic.py
+index 48a0f3f807..8eaab3345d 100644
+--- a/sympy/core/tests/test_logic.py
++++ b/sympy/core/tests/test_logic.py
+@@ -7,6 +7,7 @@
+ U = None
+ 
+ 
++from sympy import S
+ def test_torf():
+     from sympy.utilities.iterables import cartes
+     v = [T, F, U]
+@@ -195,3 +196,26 @@ def test_fuzzy_xor():
+ def test_fuzzy_nand():
+     for args in [(1, 0), (1, 1), (0, 0)]:
+         assert fuzzy_nand(args) == fuzzy_not(fuzzy_and(args))
++
++def test_float_false_comparison():
++    # Issue #20033, #20071
++    assert (S(0.0) == S.false) is False
++    assert (S.false == S(0.0)) is False
++    assert (S(0.0) != S.false) is True
++    assert (S.false != S(0.0)) is True
++
++    # Check other Booleans and Floats
++    assert (S(1.0) == S.true) is False
++    assert (S.true == S(1.0)) is False
++    assert (S(1.0) != S.true) is True
++    assert (S.true != S(1.0)) is True
++
++    assert (S(0.0) == S.true) is False
++    assert (S.true == S(0.0)) is False
++    assert (S(0.0) != S.true) is True
++    assert (S.true != S(0.0)) is True
++
++    assert (S(1.0) == S.false) is False
++    assert (S.false == S(1.0)) is False
++    assert (S(1.0) != S.false) is True
++    assert (S.false != S(1.0)) is True
+\ No newline at end of file

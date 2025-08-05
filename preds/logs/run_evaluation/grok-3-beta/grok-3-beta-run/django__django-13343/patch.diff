@@ -1,0 +1,60 @@
+diff --git a/django/db/models/fields/files.py b/django/db/models/fields/files.py
+index e10a5bb6d9..0310020604 100644
+--- a/django/db/models/fields/files.py
++++ b/django/db/models/fields/files.py
+@@ -227,6 +227,7 @@ class FileField(Field):
+     def __init__(self, verbose_name=None, name=None, upload_to='', storage=None, **kwargs):
+         self._primary_key_set_explicitly = 'primary_key' in kwargs
+ 
++        self._storage_callable = storage
+         self.storage = storage or default_storage
+         if callable(self.storage):
+             self.storage = self.storage()
+@@ -278,7 +279,9 @@ class FileField(Field):
+         if kwargs.get("max_length") == 100:
+             del kwargs["max_length"]
+         kwargs['upload_to'] = self.upload_to
+-        if self.storage is not default_storage:
++        if hasattr(self, '_storage_callable') and self._storage_callable is not None and self._storage_callable != default_storage:
++            kwargs['storage'] = self._storage_callable
++        elif self.storage is not default_storage:
+             kwargs['storage'] = self.storage
+         return name, path, args, kwargs
+ 
+diff --git a/test_filefield_deconstruct.py b/test_filefield_deconstruct.py
+new file mode 100644
+index 0000000000..2e522f61b4
+--- /dev/null
++++ b/test_filefield_deconstruct.py
+@@ -0,0 +1,30 @@
++
++import django
++from django.conf import settings
++from django.db.models import FileField
++from django.core.files.storage import Storage
++
++# Configure minimal settings for Django
++settings.configure(
++    DEFAULT_FILE_STORAGE='django.core.files.storage.FileSystemStorage'
++)
++
++def custom_storage():
++    class CustomStorage(Storage):
++        def _save(self, name, content):
++            return name
++        def get_available_name(self, name, max_length=None):
++            return name
++    return CustomStorage()
++
++# Create a FileField with callable storage
++field = FileField(upload_to='test/', storage=custom_storage)
++
++# Deconstruct the field
++name, path, args, kwargs = field.deconstruct()
++
++# Check if storage in kwargs is the callable, not the instance
++print('Storage in deconstructed kwargs is callable:', callable(kwargs.get('storage')))
++print('Deconstructed kwargs:', kwargs)
++
++print('Script completed successfully, no errors.')
+\ No newline at end of file

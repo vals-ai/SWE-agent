@@ -13,8 +13,15 @@ from swerex.deployment.config import (
 )
 from typing_extensions import Self
 
-from sweagent.agent.problem_statement import ProblemStatementConfig, TextProblemStatement
-from sweagent.environment.repo import GithubRepoConfig, LocalRepoConfig, PreExistingRepoConfig
+from sweagent.agent.problem_statement import (
+    ProblemStatementConfig,
+    TextProblemStatement,
+)
+from sweagent.environment.repo import (
+    GithubRepoConfig,
+    LocalRepoConfig,
+    PreExistingRepoConfig,
+)
 from sweagent.environment.swe_env import EnvironmentConfig
 from sweagent.utils.files import load_file
 from sweagent.utils.log import get_logger
@@ -58,14 +65,29 @@ def _slice_spec_to_slice(slice_spec: str) -> slice:
 
 
 def _filter_batch_items(
-    instances: list[BatchInstance], *, filter_: str, slice_: str = "", shuffle: bool = False
+    instances: list[BatchInstance],
+    *,
+    filter_: str,
+    slice_: str = "",
+    shuffle: bool = False,
+    instance_ids: list[str] | None = None,
 ) -> list[BatchInstance]:
     if shuffle:
         instances = sorted(instances.copy(), key=lambda x: x.problem_statement.id)
         random.seed(42)
         random.shuffle(instances)
     before_filter = len(instances)
-    instances = [instance for instance in instances if re.match(filter_, instance.problem_statement.id)]
+    instances = [
+        instance
+        for instance in instances
+        if re.match(filter_, instance.problem_statement.id)
+    ]
+    if instance_ids:
+        instances = [
+            instance
+            for instance in instances
+            if instance.problem_statement.id in instance_ids
+        ]
     after_filter = len(instances)
     if before_filter != after_filter:
         logger.info("Instance filter: %d -> %d instances", before_filter, after_filter)
@@ -73,7 +95,9 @@ def _filter_batch_items(
         instances = instances[_slice_spec_to_slice(slice_)]
         after_slice = len(instances)
         if before_filter != after_slice:
-            logger.info("Instance slice: %d -> %d instances", before_filter, after_slice)
+            logger.info(
+                "Instance slice: %d -> %d instances", before_filter, after_slice
+            )
     return instances
 
 
@@ -109,26 +133,36 @@ class SimpleBatchInstance(BaseModel):
         # Very important: Make a copy of the deployment config because it will be shared among instances!!!
         deployment = deployment.model_copy(deep=True)
         problem_statement = TextProblemStatement(
-            text=self.problem_statement, id=self.instance_id, extra_fields=self.extra_fields
+            text=self.problem_statement,
+            id=self.instance_id,
+            extra_fields=self.extra_fields,
         )
         if not self.repo_name:
             repo = None
         elif "github" in self.repo_name:
-            repo = GithubRepoConfig(github_url=self.repo_name, base_commit=self.base_commit)
+            repo = GithubRepoConfig(
+                github_url=self.repo_name, base_commit=self.base_commit
+            )
         elif "/" not in self.repo_name:
-            repo = PreExistingRepoConfig(repo_name=self.repo_name, base_commit=self.base_commit)
+            repo = PreExistingRepoConfig(
+                repo_name=self.repo_name, base_commit=self.base_commit
+            )
         else:
-            repo = LocalRepoConfig(path=Path(self.repo_name), base_commit=self.base_commit)
+            repo = LocalRepoConfig(
+                path=Path(self.repo_name), base_commit=self.base_commit
+            )
         if isinstance(deployment, LocalDeploymentConfig):
             if self.image_name:
                 msg = "Local deployment does not support image_name"
                 raise ValueError(msg)
             return BatchInstance(
-                env=EnvironmentConfig(deployment=deployment, repo=repo), problem_statement=problem_statement
+                env=EnvironmentConfig(deployment=deployment, repo=repo),
+                problem_statement=problem_statement,
             )
         if isinstance(deployment, DummyDeploymentConfig):
             return BatchInstance(
-                env=EnvironmentConfig(deployment=deployment, repo=repo), problem_statement=problem_statement
+                env=EnvironmentConfig(deployment=deployment, repo=repo),
+                problem_statement=problem_statement,
             )
 
         deployment.image = self.image_name  # type: ignore
@@ -137,7 +171,8 @@ class SimpleBatchInstance(BaseModel):
             deployment.python_standalone_dir = "/root"  # type: ignore
 
         return BatchInstance(
-            env=EnvironmentConfig(deployment=deployment, repo=repo), problem_statement=problem_statement
+            env=EnvironmentConfig(deployment=deployment, repo=repo),
+            problem_statement=problem_statement,
         )
 
     @model_validator(mode="before")
@@ -197,9 +232,17 @@ class InstancesFromFile(BaseModel, AbstractInstanceSource):
 
     def get_instance_configs(self) -> list[BatchInstance]:
         instance_dicts = load_file(self.path)
-        simple_instances = [SimpleBatchInstance.model_validate(instance_dict) for instance_dict in instance_dicts]
-        instances = [instance.to_full_batch_instance(self.deployment) for instance in simple_instances]
-        return _filter_batch_items(instances, filter_=self.filter, slice_=self.slice, shuffle=self.shuffle)
+        simple_instances = [
+            SimpleBatchInstance.model_validate(instance_dict)
+            for instance_dict in instance_dicts
+        ]
+        instances = [
+            instance.to_full_batch_instance(self.deployment)
+            for instance in simple_instances
+        ]
+        return _filter_batch_items(
+            instances, filter_=self.filter, slice_=self.slice, shuffle=self.shuffle
+        )
 
     @property
     def id(self) -> str:
@@ -234,22 +277,31 @@ class InstancesFromHuggingFace(BaseModel, AbstractInstanceSource):
         from datasets import load_dataset
 
         ds: list[dict[str, Any]] = load_dataset(self.dataset_name, split=self.split)  # type: ignore
-        simple_instances: list[SimpleBatchInstance] = [SimpleBatchInstance.model_validate(instance) for instance in ds]
-        instances = [instance.to_full_batch_instance(self.deployment) for instance in simple_instances]
-        return _filter_batch_items(instances, filter_=self.filter, slice_=self.slice, shuffle=self.shuffle)
+        simple_instances: list[SimpleBatchInstance] = [
+            SimpleBatchInstance.model_validate(instance) for instance in ds
+        ]
+        instances = [
+            instance.to_full_batch_instance(self.deployment)
+            for instance in simple_instances
+        ]
+        return _filter_batch_items(
+            instances, filter_=self.filter, slice_=self.slice, shuffle=self.shuffle
+        )
 
     @property
     def id(self) -> str:
-        ds_name = "".join(l for l in self.dataset_name if l.isalnum() or l in ["-", "_"])
+        ds_name = "".join(
+            l for l in self.dataset_name if l.isalnum() or l in ["-", "_"]
+        )
         return f"{ds_name}_{self.split}"
 
 
 class SWEBenchInstances(BaseModel, AbstractInstanceSource):
     """Load instances from SWE-bench."""
 
-    subset: Literal["lite", "verified", "full"] = "lite"
+    subset: Literal["lite", "verified", "full"] = "verified"
 
-    split: Literal["dev", "test"] = "dev"
+    split: Literal["dev", "test"] = "test"
 
     deployment: DeploymentConfig = Field(
         default_factory=lambda: DockerDeploymentConfig(image="python:3.11"),
@@ -273,6 +325,9 @@ class SWEBenchInstances(BaseModel, AbstractInstanceSource):
     evaluate: bool = False
     """Run sb-cli to evaluate"""
 
+    file: Path = None
+    """Path to a file containing the instance ids to evaluate."""
+
     def _get_huggingface_name(self) -> str:
         if self.subset == "full":
             return "princeton-nlp/SWE-Bench"
@@ -286,15 +341,28 @@ class SWEBenchInstances(BaseModel, AbstractInstanceSource):
     def get_instance_configs(self) -> list[BatchInstance]:
         from datasets import load_dataset
 
-        ds: list[dict[str, Any]] = load_dataset(self._get_huggingface_name(), split=self.split)  # type: ignore
+        ds: list[dict[str, Any]] = load_dataset(
+            self._get_huggingface_name(), split=self.split
+        )  # type: ignore
 
         if isinstance(self.deployment, DockerDeploymentConfig):
             self.deployment.platform = "linux/amd64"
 
         instances = [
-            SimpleBatchInstance.from_swe_bench(instance).to_full_batch_instance(self.deployment) for instance in ds
+            SimpleBatchInstance.from_swe_bench(instance).to_full_batch_instance(
+                self.deployment
+            )
+            for instance in ds
         ]
-        return _filter_batch_items(instances, filter_=self.filter, slice_=self.slice, shuffle=self.shuffle)
+        if self.file:
+            instance_ids = load_file(self.file)
+        return _filter_batch_items(
+            instances,
+            filter_=self.filter,
+            slice_=self.slice,
+            shuffle=self.shuffle,
+            instance_ids=instance_ids if self.file else None,
+        )
 
     @property
     def id(self) -> str:
@@ -306,7 +374,7 @@ class ExpertInstancesFromFile(BaseModel, AbstractInstanceSource):
     `EnvironmentInstanceConfig` objects, i.e., we could specify separate deployment configurations etc.
     """
 
-    path: Path
+    path: Path | None = None
     filter: str = ".*"
     """Regular expression to filter the instances by instance id."""
     slice: str = ""
@@ -321,13 +389,26 @@ class ExpertInstancesFromFile(BaseModel, AbstractInstanceSource):
     """Discriminator for (de)serialization/CLI. Do not change."""
 
     def get_instance_configs(self) -> list[BatchInstance]:
-        instance_dicts = load_file(self.path)
-        instances = [BatchInstance.model_validate(instance_dict) for instance_dict in instance_dicts]
-        return _filter_batch_items(instances, filter_=self.filter, slice_=self.slice, shuffle=self.shuffle)
+        if self.path is not None:
+            instance_dicts = load_file(self.path)
+        else:
+            instance_dicts = []
+        instances = [
+            BatchInstance.model_validate(instance_dict)
+            for instance_dict in instance_dicts
+        ]
+        return _filter_batch_items(
+            instances, filter_=self.filter, slice_=self.slice, shuffle=self.shuffle
+        )
 
     @property
     def id(self) -> str:
         return self.path.stem
 
 
-BatchInstanceSourceConfig = InstancesFromHuggingFace | InstancesFromFile | SWEBenchInstances | ExpertInstancesFromFile
+BatchInstanceSourceConfig = (
+    InstancesFromHuggingFace
+    | InstancesFromFile
+    | SWEBenchInstances
+    | ExpertInstancesFromFile
+)

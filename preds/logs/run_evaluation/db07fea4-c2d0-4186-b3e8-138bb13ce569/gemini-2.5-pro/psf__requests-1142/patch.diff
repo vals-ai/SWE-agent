@@ -1,0 +1,21 @@
+diff --git a/requests/models.py b/requests/models.py
+index 99260453..0a776f08 100644
+--- a/requests/models.py
++++ b/requests/models.py
+@@ -383,6 +383,16 @@ class PreparedRequest(RequestEncodingMixin, RequestHooksMixin):
+             if (content_type) and (not 'content-type' in self.headers):
+                 self.headers['Content-Type'] = content_type
+ 
++            # Remove Content-Length for GET/HEAD requests with no body
++            # Also remove Content-Type if it was added implicitly for an empty body
++            if self.method in ('GET', 'HEAD') and self.headers.get('Content-Length') == '0':
++                del self.headers['Content-Length']
++                # Check if Content-Type was implicitly added and remove it too if body is None
++                # This prevents sending Content-Type: application/x-www-form-urlencoded on GET
++                if body is None and content_type == 'application/x-www-form-urlencoded':
++                    if 'Content-Type' in self.headers and self.headers['Content-Type'] == content_type:
++                        del self.headers['Content-Type']
++
+         self.body = body
+ 
+     def prepare_content_length(self, body):

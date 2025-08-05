@@ -1,0 +1,47 @@
+diff --git a/django/db/models/enums.py b/django/db/models/enums.py
+index f48143ddaf..cff5597910 100644
+--- a/django/db/models/enums.py
++++ b/django/db/models/enums.py
+@@ -25,6 +25,7 @@ class ChoicesMeta(enum.EnumMeta):
+             # Use dict.__setitem__() to suppress defenses against double
+             # assignment in enum's classdict.
+             dict.__setitem__(classdict, key, value)
++        dict.__setitem__(classdict, 'do_not_call_in_templates', True)
+         cls = super().__new__(metacls, classname, bases, classdict)
+         cls._value2label_map_ = dict(zip(cls._value2member_map_, labels))
+         # Add a label property to instances of enum which uses the enum member
+diff --git a/tests/model_enums/tests.py b/tests/model_enums/tests.py
+index b9356479de..865f7c4359 100644
+--- a/tests/model_enums/tests.py
++++ b/tests/model_enums/tests.py
+@@ -5,6 +5,7 @@ import uuid
+ 
+ from django.db import models
+ from django.test import SimpleTestCase
++from django.template import Context, Template
+ from django.utils.functional import Promise
+ from django.utils.translation import gettext_lazy as _
+ 
+@@ -149,6 +150,22 @@ class ChoicesTests(SimpleTestCase):
+                 with self.subTest(member=member):
+                     self.assertEqual(str(test[member.name]), str(member.value))
+ 
++    def test_template_rendering(self):
++        # Check that Choices classes can be used in templates without being
++        # called. Regression for #31391.
++        template = Template(
++            '{% if suit == Suit.DIAMOND %}Diamond{% endif %}'
++            '{% if year == YearInSchool.FRESHMAN %}Freshman{% endif %}'
++        )
++        context = Context({
++            'Suit': Suit,
++            'suit': Suit.DIAMOND,
++            'YearInSchool': YearInSchool,
++            'year': YearInSchool.FRESHMAN,
++        })
++        rendered = template.render(context)
++        self.assertEqual(rendered, 'DiamondFreshman')
++
+ 
+ class Separator(bytes, models.Choices):
+     FS = b'\x1c', 'File Separator'

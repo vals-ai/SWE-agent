@@ -1,0 +1,97 @@
+diff --git a/django/db/backends/sqlite3/base.py b/django/db/backends/sqlite3/base.py
+index 2eeaf98c0d..baf96ab78c 100644
+--- a/django/db/backends/sqlite3/base.py
++++ b/django/db/backends/sqlite3/base.py
+@@ -327,13 +327,13 @@ class DatabaseWrapper(BaseDatabaseWrapper):
+                     violations = cursor.execute('PRAGMA foreign_key_check').fetchall()
+                 else:
+                     violations = chain.from_iterable(
+-                        cursor.execute('PRAGMA foreign_key_check(%s)' % table_name).fetchall()
++                        cursor.execute('PRAGMA foreign_key_check(%s)' % self.connection.ops.quote_name(table_name)).fetchall()
+                         for table_name in table_names
+                     )
+                 # See https://www.sqlite.org/pragma.html#pragma_foreign_key_check
+                 for table_name, rowid, referenced_table_name, foreign_key_index in violations:
+                     foreign_key = cursor.execute(
+-                        'PRAGMA foreign_key_list(%s)' % table_name
++                        'PRAGMA foreign_key_list(%s)' % self.connection.ops.quote_name(table_name)
+                     ).fetchall()[foreign_key_index]
+                     column_name, referenced_column_name = foreign_key[3:5]
+                     primary_key_column_name = self.introspection.get_primary_key_column(cursor, table_name)
+diff --git a/tests/fixtures_regress/fixtures/keyword_table_name.json b/tests/fixtures_regress/fixtures/keyword_table_name.json
+new file mode 100644
+index 0000000000..2f79c0d846
+--- /dev/null
++++ b/tests/fixtures_regress/fixtures/keyword_table_name.json
+@@ -0,0 +1,18 @@
++
++[
++{
++    "model": "fixtures_regress.order",
++    "pk": 1,
++    "fields": {
++        "name": "First Order"
++    }
++},
++{
++    "model": "fixtures_regress.orderitem",
++    "pk": 1,
++    "fields": {
++        "order": 1,
++        "item_name": "Item 1"
++    }
++}
++]
+\ No newline at end of file
+diff --git a/tests/fixtures_regress/models.py b/tests/fixtures_regress/models.py
+index f3253d1b90..880bb3a1e5 100644
+--- a/tests/fixtures_regress/models.py
++++ b/tests/fixtures_regress/models.py
+@@ -333,4 +333,15 @@ class M2MComplexCircular2B(BaseNKModel):
+ 
+ class M2MCircular2ThroughAB(BaseNKModel):
+     a = models.ForeignKey(M2MComplexCircular2A, models.CASCADE)
++
++# Models for testing loaddata with SQL keyword table names (#31980)
++class Order(models.Model):
++    name = models.CharField(max_length=50)
++
++    class Meta:
++        db_table = 'order'  # Force table name to be 'order'
++
++class OrderItem(models.Model):
++    order = models.ForeignKey(Order, on_delete=models.CASCADE)
++    item_name = models.CharField(max_length=50)
+     b = models.ForeignKey(M2MComplexCircular2B, models.CASCADE)
+diff --git a/tests/fixtures_regress/tests.py b/tests/fixtures_regress/tests.py
+index 4a22dc0246..9dc11ab727 100644
+--- a/tests/fixtures_regress/tests.py
++++ b/tests/fixtures_regress/tests.py
+@@ -848,6 +848,27 @@ class M2MNaturalKeyFixtureTests(TestCase):
+         new_a = M2MSimpleA.objects.get_by_natural_key("a")
+         self.assertCountEqual(new_a.b_set.all(), [b1, b2])
+ 
++    @skipUnlessDBFeature('can_defer_constraint_checks')  # Foreign key checks happen at commit
++    def test_loaddata_keyword_table_name(self):
++        """
++        Regression test for #31980 -- loaddata should work correctly when
++        table names are SQL keywords on SQLite.
++        """
++        # This test requires the 'Order' and 'OrderItem' models defined in
++        # fixtures_regress.models with db_table='order'.
++        from .models import Order, OrderItem  # Import here to avoid AppRegistryNotReady
++        management.call_command(
++            'loaddata',
++            'keyword_table_name',
++            verbosity=0,
++            app_label='fixtures_regress',
++        )
++        # Check if data was loaded correctly
++        self.assertEqual(Order.objects.count(), 1)
++        self.assertEqual(OrderItem.objects.count(), 1)
++        self.assertEqual(Order.objects.first().name, "First Order")
++        self.assertEqual(OrderItem.objects.first().item_name, "Item 1")
++
+ 
+ class TestTicket11101(TransactionTestCase):
+ 

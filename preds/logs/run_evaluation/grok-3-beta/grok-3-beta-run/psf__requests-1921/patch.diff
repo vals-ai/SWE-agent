@@ -1,0 +1,52 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..c3cbcf1a
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,28 @@
++
++import requests
++
++session = requests.Session()
++# Attempt to prevent sending Accept-Encoding by setting it to None
++session.headers['Accept-Encoding'] = None
++
++# Print the headers to see what is actually set
++print('Headers after setting Accept-Encoding to None:')
++print(session.headers)
++
++# Make a request to see the headers sent
++response = session.get('https://httpbin.org/headers')
++print('\nHeaders sent in the request:')
++print(response.json()['headers'])
++
++# Now delete the header and check again
++if 'Accept-Encoding' in session.headers:
++    del session.headers['Accept-Encoding']
++
++print('\nHeaders after deleting Accept-Encoding:')
++print(session.headers)
++
++response = session.get('https://httpbin.org/headers')
++print('\nHeaders sent after deleting Accept-Encoding:')
++print(response.json()['headers'])
++
++print('Script completed successfully, no errors.')
+\ No newline at end of file
+diff --git a/requests/structures.py b/requests/structures.py
+index a1759137..db43db65 100644
+--- a/requests/structures.py
++++ b/requests/structures.py
+@@ -71,7 +71,11 @@ class CaseInsensitiveDict(collections.MutableMapping):
+     def __setitem__(self, key, value):
+         # Use the lowercased key for lookups, but store the actual
+         # key alongside the value.
+-        self._store[key.lower()] = (key, value)
++        if value is None:
++            if key.lower() in self._store:
++                del self._store[key.lower()]
++        else:
++            self._store[key.lower()] = (key, value)
+ 
+     def __getitem__(self, key):
+         return self._store[key.lower()][1]

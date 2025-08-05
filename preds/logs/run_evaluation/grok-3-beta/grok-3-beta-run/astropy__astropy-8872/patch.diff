@@ -1,0 +1,51 @@
+diff --git a/astropy/units/quantity.py b/astropy/units/quantity.py
+index ded609cbe9..e4072041af 100644
+--- a/astropy/units/quantity.py
++++ b/astropy/units/quantity.py
+@@ -297,7 +297,8 @@ class Quantity(np.ndarray, metaclass=InheritDocstrings):
+                     return value
+ 
+                 if not (np.can_cast(np.float32, value.dtype) or
+-                        value.dtype.fields):
++                        value.dtype.fields or
++                        value.dtype == np.float16):
+                     dtype = float
+ 
+             return np.array(value, dtype=dtype, copy=copy, order=order,
+@@ -378,7 +379,8 @@ class Quantity(np.ndarray, metaclass=InheritDocstrings):
+ 
+         # by default, cast any integer, boolean, etc., to float
+         if dtype is None and (not (np.can_cast(np.float32, value.dtype)
+-                                   or value.dtype.fields)
++                                   or value.dtype.fields
++                                   or value.dtype == np.float16)
+                               or value.dtype.kind == 'O'):
+             value = value.astype(float)
+ 
+diff --git a/reproduce_float16_issue.py b/reproduce_float16_issue.py
+new file mode 100644
+index 0000000000..0de494dd05
+--- /dev/null
++++ b/reproduce_float16_issue.py
+@@ -0,0 +1,20 @@
++
++import numpy as np
++import astropy.units as u
++
++# Test with different float types
++float16_val = np.float16(1)
++float32_val = np.float32(1)
++float64_val = np.float64(1)
++
++# Create quantities with km unit
++quant16 = float16_val * u.km
++quant32 = float32_val * u.km
++quant64 = float64_val * u.km
++
++# Print dtypes of the quantities
++print(f"dtype of np.float16 * u.km: {quant16.dtype}")
++print(f"dtype of np.float32 * u.km: {quant32.dtype}")
++print(f"dtype of np.float64 * u.km: {quant64.dtype}")
++
++print("Script completed successfully, no errors.")
+\ No newline at end of file

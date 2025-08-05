@@ -1,0 +1,91 @@
+diff --git a/additional_test.py b/additional_test.py
+new file mode 100644
+index 000000000..65286839e
+--- /dev/null
++++ b/additional_test.py
+@@ -0,0 +1,27 @@
++
++import sys
++import sklearn
++from sklearn.linear_model import LogisticRegressionCV
++import numpy as np
++
++# Test with different solvers and multi-class settings
++np.random.seed(29)
++X = np.random.normal(size=(1000, 3))
++beta = np.random.normal(size=3)
++intercept = np.random.normal(size=None)
++y_binary = np.sign(intercept + X @ beta)
++y_multi = np.random.randint(0, 3, size=1000)  # 3 classes for multi-class
++
++# Test 1: Binary classification with saga solver
++print('Test 1: Binary with saga')
++LogisticRegressionCV(cv=5, solver='saga', tol=1e-2, refit=False).fit(X, y_binary)
++
++# Test 2: Binary classification with liblinear solver
++print('Test 2: Binary with liblinear')
++LogisticRegressionCV(cv=5, solver='liblinear', tol=1e-2, refit=False).fit(X, y_binary)
++
++# Test 3: Multi-class with saga solver
++print('Test 3: Multi-class with saga')
++LogisticRegressionCV(cv=5, solver='saga', tol=1e-2, refit=False, multi_class='multinomial').fit(X, y_multi)
++
++print('All tests completed successfully, no errors.')
+\ No newline at end of file
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 000000000..d1ee22248
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,17 @@
++
++import sys
++import sklearn
++from sklearn.linear_model import LogisticRegressionCV
++import numpy as np
++
++np.random.seed(29)
++X = np.random.normal(size=(1000, 3))
++beta = np.random.normal(size=3)
++intercept = np.random.normal(size=None)
++y = np.sign(intercept + X @ beta)
++
++LogisticRegressionCV(
++cv=5,
++solver='saga',
++tol=1e-2,
++refit=False).fit(X, y)
+\ No newline at end of file
+diff --git a/sklearn/linear_model/logistic.py b/sklearn/linear_model/logistic.py
+index 1999f1dae..cb5976f9a 100644
+--- a/sklearn/linear_model/logistic.py
++++ b/sklearn/linear_model/logistic.py
+@@ -2174,14 +2174,24 @@ class LogisticRegressionCV(LogisticRegression, BaseEstimator,
+                     w = np.mean([coefs_paths[i, best_indices[i], :]
+                                  for i in range(len(folds))], axis=0)
+                 else:
+-                    w = np.mean([coefs_paths[:, i, best_indices[i], :]
+-                                 for i in range(len(folds))], axis=0)
++                    # Check the shape of coefs_paths to handle both binary and multinomial cases
++                    if coefs_paths.ndim == 4:
++                        # For multinomial, shape is (n_classes, n_folds, n_params, n_features)
++                        w = np.mean([coefs_paths[:, i, best_indices[i], :]
++                                     for i in range(len(folds))], axis=0)
++                    else:
++                        # For binary, shape is (n_folds, n_params, n_features)
++                        w = np.mean([coefs_paths[i, best_indices[i], :]
++                                     for i in range(len(folds))], axis=0)
+ 
+                 best_indices_C = best_indices % len(self.Cs_)
+                 self.C_.append(np.mean(self.Cs_[best_indices_C]))
+ 
+-                best_indices_l1 = best_indices // len(self.Cs_)
+-                self.l1_ratio_.append(np.mean(l1_ratios_[best_indices_l1]))
++                if self.l1_ratios is not None:
++                    best_indices_l1 = best_indices // len(self.Cs_)
++                    self.l1_ratio_.append(np.mean(l1_ratios_[best_indices_l1]))
++                else:
++                    self.l1_ratio_.append(0.0)
+ 
+             if multi_class == 'multinomial':
+                 self.C_ = np.tile(self.C_, n_classes)

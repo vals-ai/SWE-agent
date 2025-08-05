@@ -1,0 +1,13 @@
+diff --git a/requests/sessions.py b/requests/sessions.py
+index 3f59cab9..8b680d10 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -285,8 +285,6 @@ class SessionRedirectMixin(object):
+         scheme = urlparse(prepared_request.url).scheme
+         new_proxies = resolve_proxies(prepared_request, proxies, self.trust_env)
+ 
+-        if 'Proxy-Authorization' in headers:
+-            del headers['Proxy-Authorization']
+ 
+         try:
+             username, password = get_auth_from_url(new_proxies[scheme])

@@ -1,0 +1,114 @@
+diff --git a/django/contrib/auth/forms.py b/django/contrib/auth/forms.py
+index d73d1c8495..4c9a4f5556 100644
+--- a/django/contrib/auth/forms.py
++++ b/django/contrib/auth/forms.py
+@@ -141,6 +141,7 @@ class UserCreationForm(forms.ModelForm):
+         user.set_password(self.cleaned_data["password1"])
+         if commit:
+             user.save()
++            self.save_m2m()
+         return user
+ 
+ 
+diff --git a/tests/auth_tests/models.py b/tests/auth_tests/models.py
+new file mode 100644
+index 0000000000..ca3948209e
+--- /dev/null
++++ b/tests/auth_tests/models.py
+@@ -0,0 +1,8 @@
++
++# Custom Model for M2M test
++from django.contrib.auth.models import AbstractUser, Group, Permission
++from django.db import models
++from django.utils.translation import gettext_lazy as _
++
++class CustomUserWithM2M(AbstractUser):
++    pass
+\ No newline at end of file
+diff --git a/tests/auth_tests/test_forms.py b/tests/auth_tests/test_forms.py
+index 78078316e8..c5928f511b 100644
+--- a/tests/auth_tests/test_forms.py
++++ b/tests/auth_tests/test_forms.py
+@@ -14,13 +14,14 @@ from django.contrib.auth.forms import (
+     UserChangeForm,
+     UserCreationForm,
+ )
++from django.contrib.auth.models import AbstractUser, Group
+ from django.contrib.auth.models import User
+ from django.contrib.auth.signals import user_login_failed
+ from django.contrib.sites.models import Site
+ from django.core import mail
+ from django.core.exceptions import ValidationError
+ from django.core.mail import EmailMultiAlternatives
+-from django.forms import forms
++from django import forms
+ from django.forms.fields import CharField, Field, IntegerField
+ from django.test import SimpleTestCase, TestCase, override_settings
+ from django.urls import reverse
+@@ -34,9 +35,32 @@ from .models.custom_user import (
+     ExtensionUser,
+ )
+ from .models.with_custom_email_field import CustomEmailField
++from .models import CustomUserWithM2M
+ from .models.with_integer_username import IntegerUsernameUser
+ from .settings import AUTH_TEMPLATES
+ 
++# Custom Form for M2M test
++class CustomUserWithM2MCreationForm(UserCreationForm):
++    groups = forms.ModelMultipleChoiceField(
++        queryset=Group.objects.all(),
++        required=False,
++        widget=forms.CheckboxSelectMultiple,
++        label=_("Groups"),
++    )
++
++    class Meta(UserCreationForm.Meta):
++        model = CustomUserWithM2M
++        fields = ("username",)
++
++    def __init__(self, *args, **kwargs):
++        super().__init__(*args, **kwargs)
++        # Add the groups field dynamically to the fields dictionary
++        # This ensures it's included in the form layout.
++        self.fields["groups"] = self.base_fields["groups"]
++
++    # No need to override save() here because the fix in UserCreationForm
++    # should handle calling save_m2m()
++
+ 
+ class TestDataMixin:
+     @classmethod
+@@ -334,6 +358,33 @@ class UserCreationFormTest(TestDataMixin, TestCase):
+                     form.fields[field_name].widget.attrs["autocomplete"], autocomplete
+                 )
+ 
++    @override_settings(AUTH_USER_MODEL="auth_tests.CustomUserWithM2M")
++    def test_save_m2m(self):
++        """
++        UserCreationForm saves ManyToMany fields when commit=True.
++        """
++        Group.objects.create(name="Test Group 1")
++        Group.objects.create(name="Test Group 2")
++        data = {
++            "username": "new_m2m_user",
++            "password1": "password",
++            "password2": "password",
++            "groups": [g.pk for g in Group.objects.all()],
++        }
++        # Use the custom form defined earlier
++        form = CustomUserWithM2MCreationForm(data)
++        self.assertTrue(form.is_valid(), form.errors)
++        form.save(commit=True)
++        # Retrieve user directly from DB
++        user = CustomUserWithM2M.objects.get(username="new_m2m_user")
++        self.assertEqual(user.username, "new_m2m_user")
++        self.assertEqual(user.groups.count(), 2)
++        self.assertQuerySetEqual(
++            user.groups.order_by("name"),
++            Group.objects.order_by("name"),
++            transform=lambda g: g,
++        )
++
+ 
+ # To verify that the login form rejects inactive users, use an authentication
+ # backend that allows them.

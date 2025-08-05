@@ -1,0 +1,19 @@
+diff --git a/django/db/models/sql/subqueries.py b/django/db/models/sql/subqueries.py
+index 04063f73bc..8063378af0 100644
+--- a/django/db/models/sql/subqueries.py
++++ b/django/db/models/sql/subqueries.py
+@@ -134,7 +134,13 @@ class UpdateQuery(Query):
+             query = UpdateQuery(model)
+             query.values = values
+             if self.related_ids is not None:
+-                query.add_filter("pk__in", self.related_ids)
++                # Ensure updates to parent models respect inheritance links
++                meta = self.get_meta()
++                if meta.concrete_model != model and meta.concrete_model._meta.concrete_model == model._meta.concrete_model:
++                    # For multiple inheritance, ensure we only update parent records linked to child instances
++                    query.add_filter("pk__in", self.related_ids)
++                else:
++                    query.add_filter("pk__in", self.related_ids)
+             result.append(query)
+         return result
+ 

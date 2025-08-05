@@ -1,0 +1,36 @@
+diff --git a/tests/ordering/models.py b/tests/ordering/models.py
+index 2efb743e44..8a15df3192 100644
+--- a/tests/ordering/models.py
++++ b/tests/ordering/models.py
+@@ -59,3 +59,17 @@ class Reference(models.Model):
+ 
+     class Meta:
+         ordering = ('article',)
++
++
++class OneModel(models.Model):
++    class Meta:
++        ordering = ("-id",)
++    id = models.BigAutoField(primary_key=True)
++    root = models.ForeignKey("OneModel", on_delete=models.CASCADE, null=True)
++    oneval = models.BigIntegerField(null=True)
++
++
++class TwoModel(models.Model):
++    id = models.BigAutoField(primary_key=True)
++    record = models.ForeignKey(OneModel, on_delete=models.CASCADE)
++    twoval = models.BigIntegerField(null=True)
+\ No newline at end of file
+diff --git a/tests/ordering/tests.py b/tests/ordering/tests.py
+index a9cc729c45..319ba34c5d 100644
+--- a/tests/ordering/tests.py
++++ b/tests/ordering/tests.py
+@@ -8,7 +8,7 @@ from django.db.models import (
+ from django.db.models.functions import Upper
+ from django.test import TestCase
+ 
+-from .models import Article, Author, ChildArticle, OrderedByFArticle, Reference
++from .models import Article, Author, ChildArticle, OrderedByFArticle, Reference, OneModel, TwoModel
+ 
+ 
+ class OrderingTests(TestCase):

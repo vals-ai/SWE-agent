@@ -1,0 +1,42 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..6c0fdf39
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,18 @@
++
++import requests
++
++# Simulate the issue by passing a binary string as the method
++method = b'GET'
++url = 'https://httpbin.org/get'
++
++# Create a session and send a request with the binary method
++session = requests.Session()
++response = session.request(method, url)
++
++print('Status Code:', response.status_code)
++print('Method used:', response.request.method)
++
++if response.status_code == 200:
++    print('Script completed successfully, no errors.')
++else:
++    print('Failed to get a successful response.')
+\ No newline at end of file
+diff --git a/requests/sessions.py b/requests/sessions.py
+index d701ff2e..4d35f7c8 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -425,7 +425,11 @@ class Session(SessionRedirectMixin):
+             If Tuple, ('cert', 'key') pair.
+         """
+ 
+-        method = builtin_str(method)
++        # Handle binary strings by decoding to regular string
++        if isinstance(method, bytes):
++            method = method.decode('utf-8')
++        else:
++            method = builtin_str(method)
+ 
+         # Create the Request.
+         req = Request(

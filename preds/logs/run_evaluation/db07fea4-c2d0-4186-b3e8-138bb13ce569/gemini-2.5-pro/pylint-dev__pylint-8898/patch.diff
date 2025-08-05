@@ -1,0 +1,72 @@
+diff --git a/foo.py b/foo.py
+new file mode 100644
+index 000000000..8b1378917
+--- /dev/null
++++ b/foo.py
+@@ -0,0 +1 @@
++
+diff --git a/pylint/checkers/base/name_checker/checker.py b/pylint/checkers/base/name_checker/checker.py
+index 42a7c6b2e..986fea82f 100644
+--- a/pylint/checkers/base/name_checker/checker.py
++++ b/pylint/checkers/base/name_checker/checker.py
+@@ -228,11 +228,12 @@ class NameChecker(_BasicChecker):
+         (
+             "bad-names-rgxs",
+             {
+-                "default": "",
+-                "type": "regexp_csv",
+-                "metavar": "<names>",
+-                "help": "Bad variable names regexes, separated by a comma. If names match any regex,"
+-                " they will always be refused",
++                "default": (),  # Changed default to empty tuple
++                "type": "regexp_list",  # Changed type
++                "metavar": "<regexes>", # Changed metavar for clarity
++                "nargs": "*",  # Added nargs
++                "help": "Regular expressions matching bad variable names. If a name matches any regex,"
++                " it will always be refused. Provide as a list of strings.", # Updated help
+             },
+         ),
+         (
+diff --git a/pylint/config/argument.py b/pylint/config/argument.py
+index 30a5fd175..9d12fbaed 100644
+--- a/pylint/config/argument.py
++++ b/pylint/config/argument.py
+@@ -130,6 +130,16 @@ def _regexp_paths_csv_transfomer(value: str) -> Sequence[Pattern[str]]:
+                 + pathlib.PureWindowsPath(pattern).as_posix()
+             )
+         )
++
++
++def _regexp_list_transformer(value: list[str]) -> list[re.Pattern[str]]:
++    """Transforms a list of strings to a list of regex patterns."""
++    patterns = []
++    for pattern in value:
++        try:
++            patterns.append(re.compile(pattern))
++        except re.error as e:
++            raise ValueError(f"Invalid regular expression: {pattern!r}") from e
+     return patterns
+ 
+ 
+@@ -148,6 +158,7 @@ _TYPE_TRANSFORMERS: dict[str, Callable[[str], _ArgumentTypes]] = {
+     "regexp_paths_csv": _regexp_paths_csv_transfomer,
+     "string": pylint_utils._unquote,
+     "yn": _yn_transformer,
++    "regexp_list": _regexp_list_transformer,
+ }
+ """Type transformers for all argument types.
+ 
+diff --git a/pyproject.toml b/pyproject.toml
+index 959533962..fcc603e96 100644
+--- a/pyproject.toml
++++ b/pyproject.toml
+@@ -166,3 +166,8 @@ fixable = [
+     "I",  # isort
+     "RUF", # ruff
+ ]
++
++[tool.pylint.basic]
++# capture group ensures that the part after the comma is an invalid regular
++# expression, causing pylint to crash
++bad-name-rgxs = "(foo{1,3})"
+\ No newline at end of file

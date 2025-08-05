@@ -1,0 +1,104 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..f861d4c9
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,6 @@
++
++import xarray as xr
++
++ds = xr.tutorial.load_dataset("air_temperature")
++result = xr.where(True, ds.air, ds.air, keep_attrs=True)
++print(result.time.attrs)
+\ No newline at end of file
+diff --git a/test_where_attrs.py b/test_where_attrs.py
+new file mode 100644
+index 00000000..2cda0799
+--- /dev/null
++++ b/test_where_attrs.py
+@@ -0,0 +1,30 @@
++
++import xarray as xr
++
++# Load a sample dataset
++ds = xr.tutorial.load_dataset("air_temperature")
++
++# Test 1: Basic where with keep_attrs=True
++result1 = xr.where(True, ds.air, ds.air, keep_attrs=True)
++print("Test 1 - Basic where with keep_attrs=True:")
++print("Time attrs:", result1.time.attrs)
++
++# Test 2: Where with a condition DataArray and keep_attrs=True
++cond = ds.air > 270
++result2 = xr.where(cond, ds.air, ds.air - 10, keep_attrs=True)
++print("\nTest 2 - Where with condition DataArray and keep_attrs=True:")
++print("Time attrs:", result2.time.attrs)
++
++# Test 3: Where with keep_attrs=False to ensure no preservation
++result3 = xr.where(True, ds.air, ds.air, keep_attrs=False)
++print("\nTest 3 - Where with keep_attrs=False:")
++print("Time attrs:", result3.time.attrs)
++
++# Test 4: Where with Dataset inputs and keep_attrs=True
++ds2 = ds.copy()
++ds2['air'] = ds.air + 5
++result4 = xr.where(True, ds, ds2, keep_attrs=True)
++print("\nTest 4 - Where with Dataset inputs and keep_attrs=True:")
++print("Time attrs:", result4.time.attrs)
++
++print("All tests completed.")
+\ No newline at end of file
+diff --git a/xarray/core/computation.py b/xarray/core/computation.py
+index 3f7e8f74..4af50c74 100644
+--- a/xarray/core/computation.py
++++ b/xarray/core/computation.py
+@@ -1857,13 +1857,14 @@ def where(cond, x, y, keep_attrs=None):
+     """
+     if keep_attrs is None:
+         keep_attrs = _get_keep_attrs(default=False)
+-    if keep_attrs is True:
+-        # keep the attributes of x, the second parameter, by default to
+-        # be consistent with the `where` method of `DataArray` and `Dataset`
+-        keep_attrs = lambda attrs, context: getattr(x, "attrs", {})
++    # Store whether keep_attrs was True for later use
++    preserve_attrs = keep_attrs is True
++    # Set keep_attrs to False for apply_ufunc to prevent automatic attribute copying
++    apply_keep_attrs = False
+ 
+     # alignment for three arguments is complicated, so don't support it yet
+-    return apply_ufunc(
++    # Store the result of apply_ufunc
++    result = apply_ufunc(
+         duck_array_ops.where,
+         cond,
+         x,
+@@ -1871,8 +1872,28 @@ def where(cond, x, y, keep_attrs=None):
+         join="exact",
+         dataset_join="exact",
+         dask="allowed",
+-        keep_attrs=keep_attrs,
++        keep_attrs=apply_keep_attrs,
+     )
++    # If preserve_attrs is True, set data variable attributes from x and preserve coordinate attributes
++    if preserve_attrs:
++        # Set data variable attributes from x
++        if hasattr(x, 'attrs'):
++            result.attrs = x.attrs
++        # Preserve coordinate attributes from inputs
++        if hasattr(result, 'coords') and (hasattr(x, 'coords') or hasattr(y, 'coords')):
++            coord_attrs = {}
++            if hasattr(x, 'coords'):
++                for coord in x.coords:
++                    if coord in result.coords:
++                        coord_attrs[coord] = x.coords[coord].attrs
++            if hasattr(y, 'coords'):
++                for coord in y.coords:
++                    if coord in result.coords and coord not in coord_attrs:
++                        coord_attrs[coord] = y.coords[coord].attrs
++            # Restore coordinate attributes
++            for coord, attrs in coord_attrs.items():
++                result.coords[coord].attrs = attrs
++    return result
+ 
+ 
+ @overload

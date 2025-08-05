@@ -1,0 +1,105 @@
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..f76ed2e28a
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,11 @@
++
++from sympy.utilities.autowrap import autowrap
++from sympy import MatrixSymbol
++import numpy as np
++
++x = MatrixSymbol('x', 2, 1)
++expr = 1.0
++f = autowrap(expr, args=(x,), backend='cython')
++
++f(np.array([[1.0, 2.0]]))
++print("Script completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/sympy/utilities/codegen.py b/sympy/utilities/codegen.py
+index f0befb2bd7..9cbdbe95a6 100644
+--- a/sympy/utilities/codegen.py
++++ b/sympy/utilities/codegen.py
+@@ -709,7 +709,24 @@ def routine(self, name, expr, argument_sequence=None, global_vars=None):
+                     dims.append((S.Zero, dim - 1))
+                 metadata = {'dimensions': dims}
+             else:
++                # Check if the symbol itself is an array/matrix type
++                # even if not used in the expression
+                 metadata = {}
++                if isinstance(symbol, (MatrixSymbol, IndexedBase)):
++                    try:
++                        shape = getattr(symbol, 'shape', None)
++                        if shape:
++                            dims = []
++                            for dim in shape:
++                                try:
++                                    dim_val = int(dim)
++                                    dims.append((S.Zero, dim_val - 1))
++                                except TypeError:
++                                    dims.append((S.Zero, dim - 1)) # Keep symbolic upper bound
++                            if dims:
++                                metadata = {'dimensions': dims}
++                    except AttributeError:
++                        pass # Should not happen
+ 
+             arg_list.append(InputArgument(symbol, **metadata))
+ 
+diff --git a/sympy/utilities/tests/test_autowrap.py b/sympy/utilities/tests/test_autowrap.py
+index 47fe933dc1..19dced48a7 100644
+--- a/sympy/utilities/tests/test_autowrap.py
++++ b/sympy/utilities/tests/test_autowrap.py
+@@ -467,3 +467,52 @@ def test_ufuncify_source_multioutput():
+ }
+ #endif""" % {'num': CodeWrapper._module_counter}
+     assert source == expected
++
++
++def test_autowrap_cython_unused_array_arg():
++    """
++    Test autowrap with cython backend for unused array arguments.
++    See issue #14836.
++    """
++    from sympy import MatrixSymbol, symbols, IndexedBase
++    from sympy.utilities.autowrap import autowrap
++    from sympy.utilities.pytest import requires_cython, pytest
++
++    @requires_cython
++    def test_logic():
++        x = MatrixSymbol('x', 2, 1)
++        y = symbols('y') # Add a scalar symbol as well
++
++        # Case 1: Unused MatrixSymbol, used scalar
++        try:
++            f1 = autowrap(y, args=(x, y), backend='cython')
++            # We can't easily call f1 without numpy, but generation should succeed
++            assert callable(f1)
++        except Exception as e:
++            pytest.fail(f"autowrap failed for unused MatrixSymbol: {e}")
++
++        # Case 2: Only unused MatrixSymbol
++        try:
++            f2 = autowrap(1.0, args=(x,), backend='cython')
++            assert callable(f2)
++        except Exception as e:
++            pytest.fail(f"autowrap failed for only unused MatrixSymbol: {e}")
++
++        # Case 3: Unused IndexedBase (similar concept)
++        # Note: autowrap might not directly support IndexedBase in args
++        # If it fails for other reasons, that's okay, the main test is MatrixSymbol
++        try:
++            A = IndexedBase('A')
++            i, j = symbols('i j', integer=True)
++            # Using a simple expression involving the indexed element
++            # to ensure it's recognized, but the base A might still be unused in some sense
++            # Let's try wrapping a constant with A as arg
++            f3 = autowrap(1.0, args=(A,), backend='cython')
++            assert callable(f3)
++        except NotImplementedError:
++            # If IndexedBase args aren't supported, this is expected
++            pass
++        except Exception as e:
++            pytest.fail(f"autowrap failed for unused IndexedBase: {e}")
++
++    test_logic() # Execute the decorated function
+\ No newline at end of file

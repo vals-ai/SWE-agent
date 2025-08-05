@@ -1,0 +1,29 @@
+diff --git a/sympy/matrices/tests/test_matrices.py b/sympy/matrices/tests/test_matrices.py
+index bca44a60fe..430b5b2923 100644
+--- a/sympy/matrices/tests/test_matrices.py
++++ b/sympy/matrices/tests/test_matrices.py
+@@ -2454,6 +2454,24 @@ def test_issue_5320():
+         [0, 1, 0, 2]
+     ])
+ 
++    # Test hstack/vstack with zero-dimension matrices (issue #12011 related)
++    M0x0 = Matrix.zeros(0, 0)
++    M0x1 = Matrix.zeros(0, 1)
++    M0x2 = Matrix.zeros(0, 2)
++    M0x3 = Matrix.zeros(0, 3)
++    assert Matrix.hstack(M0x0, M0x1, M0x2, M0x3).shape == (0, 6)
++    assert Matrix.hstack(M0x1, M0x0, M0x2, M0x3).shape == (0, 6) # Check order doesn't matter
++    assert Matrix.hstack(M0x0).shape == (0, 0) # Check single matrix
++    assert Matrix.hstack().shape == (0, 0) # Check empty hstack
++
++    M1x0 = Matrix.zeros(1, 0)
++    M2x0 = Matrix.zeros(2, 0)
++    M3x0 = Matrix.zeros(3, 0)
++    assert Matrix.vstack(M0x0, M1x0, M2x0, M3x0).shape == (6, 0)
++    assert Matrix.vstack(M1x0, M0x0, M2x0, M3x0).shape == (6, 0) # Check order doesn't matter
++    assert Matrix.vstack(M0x0).shape == (0, 0) # Check single matrix
++    assert Matrix.vstack().shape == (0, 0) # Check empty vstack
++
+ def test_issue_11944():
+     A = Matrix([[1]])
+     AIm = sympify(A)

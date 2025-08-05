@@ -1,0 +1,98 @@
+diff --git a/django/forms/fields.py b/django/forms/fields.py
+index 65d6a9ec82..2c48288fa5 100644
+--- a/django/forms/fields.py
++++ b/django/forms/fields.py
+@@ -1023,6 +1023,10 @@ class MultiValueField(Field):
+             value = self.widget.decompress(value)
+         if not value or isinstance(value, (list, tuple)):
+             if not value or not [v for v in value if v not in self.empty_values]:
++                # Check if any subfield is required before returning early
++                for field in self.fields:
++                    if field.required:
++                        raise ValidationError(field.error_messages['required'], code='required')
+                 if self.required:
+                     raise ValidationError(self.error_messages['required'], code='required')
+                 else:
+@@ -1040,13 +1044,14 @@ class MultiValueField(Field):
+                     # required and any field is empty.
+                     if self.required:
+                         raise ValidationError(self.error_messages['required'], code='required')
+-                elif field.required:
++                if field.required:
++                    # Raise a 'required' error if the individual field is required and empty.
++                    raise ValidationError(field.error_messages['required'], code='required')
++                elif field.error_messages['incomplete'] not in errors:
+                     # Otherwise, add an 'incomplete' error to the list of
+-                    # collected errors and skip field cleaning, if a required
+-                    # field is empty.
+-                    if field.error_messages['incomplete'] not in errors:
+-                        errors.append(field.error_messages['incomplete'])
+-                    continue
++                    # collected errors and skip field cleaning.
++                    errors.append(field.error_messages['incomplete'])
++                continue
+             try:
+                 clean_data.append(field.clean(field_value))
+             except ValidationError as e:
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..bdc9d41ad8
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,55 @@
++
++import django
++from django.conf import settings
++from django.forms import (
++    Form,
++    CharField,
++    MultiValueField,
++    MultiWidget,
++)
++
++# Configure minimal Django settings
++if not settings.configured:
++    settings.configure(
++        USE_I18N=False,
++        USE_L10N=False,
++        USE_TZ=False
++    )
++    django.setup()
++
++class MF(MultiValueField):
++    widget = MultiWidget
++    def __init__(self):
++        fields = [
++            CharField(required=False),
++            CharField(required=True),
++        ]
++        widget = self.widget(widgets=[
++            f.widget
++            for f in fields
++        ], attrs={})
++        super(MF, self).__init__(
++            fields=fields,
++            widget=widget,
++            require_all_fields=False,
++            required=False,
++        )
++    def compress(self, value):
++        return []
++
++class F(Form):
++    mf = MF()
++
++# Test case 1: Both fields empty
++f1 = F({
++    'mf_0': '',
++    'mf_1': '',
++})
++print('Test 1 - Both empty:', f1.is_valid())  # Expected: False, Actual: True
++
++# Test case 2: One field filled, one empty
++f2 = F({
++    'mf_0': 'xxx',
++    'mf_1': '',
++})
++print('Test 2 - One filled:', f2.is_valid())  # Expected: False, Actual: False
+\ No newline at end of file

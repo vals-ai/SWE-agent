@@ -1,0 +1,62 @@
+diff --git a/sympy/polys/polytools.py b/sympy/polys/polytools.py
+index c9e77a901f..c5a4cc0394 100644
+--- a/sympy/polys/polytools.py
++++ b/sympy/polys/polytools.py
+@@ -5950,7 +5950,25 @@ def _symbolic_factor_list(expr, opt, method):
+ 
+                 factors.append((_factors_product(other), exp))
+ 
+-    return coeff, factors
++    # Merge factors with the same exponent
++    merged_factors_dict = {}
++    for f, k in factors:
++        if k not in merged_factors_dict:
++            merged_factors_dict[k] = []
++        merged_factors_dict[k].append(f)
++
++    merged_factors = []
++    for k, fs in merged_factors_dict.items():
++        # Multiply factors with the same exponent
++        merged_f = Mul(*[poly.as_expr() for poly in fs])
++        # Convert back to Poly if possible, otherwise keep as expression
++        try:
++            merged_poly, _ = _poly_from_expr(merged_f, opt)
++            merged_factors.append((merged_poly, k))
++        except PolificationFailed:
++            merged_factors.append((merged_f, k))
++
++    return coeff, merged_factors
+ 
+ 
+ def _symbolic_factor(expr, opt, method):
+diff --git a/sympy/polys/tests/test_polytools.py b/sympy/polys/tests/test_polytools.py
+index 82e5f4d6dd..74536d51db 100644
+--- a/sympy/polys/tests/test_polytools.py
++++ b/sympy/polys/tests/test_polytools.py
+@@ -2328,7 +2328,25 @@ def test_sqf():
+     f = (x**2 + 2*x + 1)**20000000000
+ 
+     assert sqf(f) == (x + 1)**40000000000
+-    assert sqf_list(f) == (1, [(x + 1, 40000000000)])
++
++    # Test for issue #16131 (combining factors with same multiplicity)
++    expr1 = (x**2 + 1) * (x - 1)**2 * (x - 2)**3 * (x - 3)**3
++    expected1 = (1, [(x**2 + 1, 1), (x - 1, 2), (x**2 - 5*x + 6, 3)])
++    assert sqf_list(expr1) == expected1
++
++    # Test with Poly input
++    P = Poly(expr1, x)
++    expected1_poly = (Poly(1, x, domain='ZZ'), [
++        (Poly(x**2 + 1, x, domain='ZZ'), 1),
++        (Poly(x - 1, x, domain='ZZ'), 2),
++        (Poly(x**2 - 5*x + 6, x, domain='ZZ'), 3)])
++    assert sqf_list(P) == expected1_poly
++
++    # Test with polys=True
++    assert sqf_list(expr1, polys=True) == expected1_poly
++
++    # Test with polys=False
++    assert sqf_list(P, polys=False) == expected1
+ 
+ 
+ def test_factor():

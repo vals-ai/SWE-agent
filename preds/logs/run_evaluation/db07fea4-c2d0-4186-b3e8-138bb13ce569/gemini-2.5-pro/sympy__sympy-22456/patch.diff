@@ -1,0 +1,90 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..c6181d672e
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,50 @@
++
++from sympy.codegen.ast import String
++from sympy.core.basic import Basic
++
++# Create a String instance
++s_val = "hello world"
++expr = String(s_val)
++
++print(f"Expression: {expr}")
++print(f"Type: {type(expr)}")
++print(f"Is Basic subclass: {isinstance(expr, Basic)}")
++print(f"expr.func: {expr.func}")
++print(f"expr.args: {expr.args}")
++# print(f"expr.kwargs(): {expr.kwargs()}") # Basic doesn't have kwargs method
++
++# Check the desired invariance
++reconstructed_args = expr.func(*expr.args)
++print(f"Reconstructed with *args: {reconstructed_args}")
++print(f"Type of reconstructed_args: {type(reconstructed_args)}")
++print(f"expr.func(*expr.args) == expr: {reconstructed_args == expr}")
++
++# Check the current (supposedly incorrect) invariance mentioned in the issue
++# Note: Basic does not have a .kwargs() method. The issue description might be slightly inaccurate
++# or referring to an internal mechanism. Let's try reconstructing with the internal _args
++# which might be different from .args
++# However, String inherits from str, so its constructor takes one argument.
++# Let's see how String is actually constructed.
++# The source code shows String.__new__(cls, name)
++# So, the argument is 'name'. Let's assume args should be (name,)
++
++print("\nTesting expected behavior:")
++expected_args = (s_val,)
++print(f"Expected args: {expected_args}")
++reconstructed_expected = expr.func(*expected_args)
++print(f"Reconstructed with expected args: {reconstructed_expected}")
++print(f"Type of reconstructed_expected: {type(reconstructed_expected)}")
++print(f"expr.func(*expected_args) == expr: {reconstructed_expected == expr}")
++
++if reconstructed_args == expr:
++    print("\nBug seems fixed or not present with current args.")
++else:
++    print("\nBug reproduced: expr.func(*expr.args) != expr")
++
++if reconstructed_expected == expr:
++    print("Reconstruction with expected args works.")
++else:
++    print("Reconstruction with expected args FAILS.")
++
++
++print("\nScript completed.")
+\ No newline at end of file
+diff --git a/sympy/codegen/ast.py b/sympy/codegen/ast.py
+index a02714b174..38ca097eee 100644
+--- a/sympy/codegen/ast.py
++++ b/sympy/codegen/ast.py
+@@ -895,7 +895,7 @@ class String(Token):
+ 
+     """
+     __slots__ = ('text',)
+-    not_in_args = ['text']
++    not_in_args = []
+     is_Atom = True
+ 
+     @classmethod
+diff --git a/sympy/codegen/tests/test_ast.py b/sympy/codegen/tests/test_ast.py
+index 00c5d4cf28..3916dc3dd0 100644
+--- a/sympy/codegen/tests/test_ast.py
++++ b/sympy/codegen/tests/test_ast.py
+@@ -641,6 +641,15 @@ def test_FunctionCall():
+         'FunctionCall("fma", function_args=(2, 3, 4))',
+     )
+ 
++def test_String_invariance():
++    from sympy.codegen.ast import String
++    s_val = "test string"
++    expr = String(s_val)
++    # Check that the string value is in args
++    assert expr.args == (s_val,)
++    # Check the Basic invariance: expr.func(*expr.args) == expr
++    assert expr.func(*expr.args) == expr
++
+ def test_ast_replace():
+     x = Variable('x', real)
+     y = Variable('y', real)

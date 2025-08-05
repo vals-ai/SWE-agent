@@ -1,0 +1,18 @@
+diff --git a/tests/queries/test_qs_combinators.py b/tests/queries/test_qs_combinators.py
+index 668d5e6ad6..a1667bc5b1 100644
+--- a/tests/queries/test_qs_combinators.py
++++ b/tests/queries/test_qs_combinators.py
+@@ -1,9 +1,11 @@
+ from django.db import connection
+-from django.db.models import Exists, F, IntegerField, OuterRef, Value
++from django.db.models import Exists, OuterRef
++from django.db.models import Q
++from django.db.models import F, IntegerField, Value
+ from django.db.utils import DatabaseError, NotSupportedError
+ from django.test import TestCase, skipIfDBFeature, skipUnlessDBFeature
+ 
+-from .models import Number, ReservedName
++from .models import Item, Category, Number, ReservedName
+ 
+ 
+ @skipUnlessDBFeature('supports_select_union')

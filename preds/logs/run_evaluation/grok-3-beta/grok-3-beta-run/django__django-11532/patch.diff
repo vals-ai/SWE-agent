@@ -1,0 +1,23 @@
+diff --git a/reproduce_email_bug.py b/reproduce_email_bug.py
+new file mode 100644
+index 0000000000..a88f913995
+--- /dev/null
++++ b/reproduce_email_bug.py
+@@ -0,0 +1,16 @@
++
++from unittest.mock import patch
++import django
++from django.core.mail import EmailMessage
++import os
++
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'django.conf.global_settings')
++from django.conf import settings
++settings.configure(SECRET_KEY='dummy-secret-key-for-testing')
++django.setup()
++
++with patch("django.core.mail.message.DNS_NAME", "漢字"):
++    email = EmailMessage('subject', '', 'from@example.com', ['to@example.com'])
++    email.encoding = 'iso-8859-1'
++    message = email.message()
++    print("Script completed successfully, no errors.")
+\ No newline at end of file

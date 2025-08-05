@@ -1,0 +1,54 @@
+diff --git a/xarray/core/dataset.py b/xarray/core/dataset.py
+index c775d05c..0463fc87 100644
+--- a/xarray/core/dataset.py
++++ b/xarray/core/dataset.py
+@@ -3772,7 +3772,8 @@ class Dataset(
+         for k, v in self.variables.items():
+             dims = tuple(dims_dict.get(dim, dim) for dim in v.dims)
+             if k in result_dims:
+-                var = v.to_index_variable()
++                var = v.copy(deep=False) # Create shallow copy first
++                var = var.to_index_variable() # Convert the copy
+                 var.dims = dims
+                 if k in self._indexes:
+                     indexes[k] = self._indexes[k]
+diff --git a/xarray/tests/test_dataset.py b/xarray/tests/test_dataset.py
+index 9ea47163..baa1188b 100644
+--- a/xarray/tests/test_dataset.py
++++ b/xarray/tests/test_dataset.py
+@@ -2995,6 +2995,35 @@ class TestDataset:
+         assert isinstance(actual.variables["x"], Variable)
+         assert actual.xindexes["y"].equals(expected.xindexes["y"])
+ 
++    def test_swap_dims_does_not_modify_original(self) -> None:
++        # Test for GH issue #6763 - swap_dims modifying original object
++        nz = 5
++        ds = xr.Dataset(
++            data_vars={
++                "y": ("z", np.random.rand(nz)),
++                "lev": ("z", np.arange(nz) * 10),
++            },
++        )
++        ds_original = ds.copy(deep=True)
++
++        # Create ds2 through a series of operations including swap_dims
++        ds2 = (
++            ds.swap_dims(z="lev")
++            .rename_dims(lev="z")
++            .reset_index("lev")
++            .reset_coords()
++        )
++        ds2_original = ds2.copy(deep=True)
++
++        # Perform the swap_dims operation that previously caused mutation
++        _ = ds2.swap_dims(z="lev")
++
++        # Verify that the original ds2 was not modified
++        assert_identical(ds2, ds2_original)
++
++        # Also verify the very first dataset was not modified
++        assert_identical(ds, ds_original)
++
+     def test_expand_dims_error(self) -> None:
+         original = Dataset(
+             {

@@ -1,0 +1,41 @@
+diff --git a/django/db/models/query.py b/django/db/models/query.py
+index b48d0df9c0..5b07be6ae4 100644
+--- a/django/db/models/query.py
++++ b/django/db/models/query.py
+@@ -211,6 +211,9 @@ class QuerySet:
+     @query.setter
+     def query(self, value):
+         self._query = value
++        # Update _iterable_class based on query properties
++        if getattr(value, 'values_select', ()):
++            self._iterable_class = ValuesIterable
+ 
+     def as_manager(cls):
+         # Address the circular dependency between `Queryset` and `Manager`.
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..dfd038fd6b
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,20 @@
++
++import pickle
++from django.db.models import Sum
++from django_error2.models import Toy
++
++# Create sample data
++Toy.objects.create(name='foo', price=10, material='wood')
++Toy.objects.create(name='bar', price=20, material='plastic')
++Toy.objects.create(name='baz', price=100, material='wood')
++
++# Original query with values and annotate
++prices = Toy.objects.values('material').annotate(total_price=Sum('price'))
++print(prices)
++print(type(prices[0]))
++
++# Recreate query from pickled state
++prices2 = Toy.objects.all()
++prices2.query = pickle.loads(pickle.dumps(prices.query))
++print(type(prices2[0]))
++print(prices2)
+\ No newline at end of file

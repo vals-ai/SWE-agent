@@ -1,0 +1,223 @@
+diff --git a/sympy/stats/crv_types.py b/sympy/stats/crv_types.py
+index fff7da80ae..4978af3fe3 100644
+--- a/sympy/stats/crv_types.py
++++ b/sympy/stats/crv_types.py
+@@ -45,10 +45,11 @@
+ 
+ from __future__ import print_function, division
+ 
+-from sympy import (log, sqrt, pi, S, Dummy, Interval, sympify, gamma,
++from sympy import (log, sqrt, pi, S, Dummy, Interval, sympify, gamma, asin, Integer,
+                    Piecewise, And, Eq, binomial, factorial, Sum, floor, Abs,
+-                   Lambda, Basic, lowergamma, erf, erfc, I)
++                   Lambda, Basic, lowergamma, uppergamma, erf, erfc, I, hyper)
+ from sympy import beta as beta_fn
++
+ from sympy import cos, exp, besseli
+ from sympy.stats.crv import (SingleContinuousPSpace, SingleContinuousDistribution,
+         ContinuousDistributionHandmade)
+@@ -153,6 +154,16 @@ class ArcsinDistribution(SingleContinuousDistribution):
+     def pdf(self, x):
+         return 1/(pi*sqrt((x - self.a)*(self.b - x)))
+ 
++    def _cdf(self, x):
++        # The CDF for Arcsin(a, b) is F(x) = (2/pi) * asin(sqrt((x-a)/(b-a)))
++        # See: https://en.wikipedia.org/wiki/Arcsine_distribution
++        a, b = self.a, self.b
++        return Piecewise(
++            (0, x < a),
++            (2*asin(sqrt((x - a)/(b - a)))/pi, And(a <= x, x <= b)),
++            (1, x > b)
++        )
++
+ def Arcsin(name, a=0, b=1):
+     r"""
+     Create a Continuous Random Variable with an arcsin distribution.
+@@ -670,6 +681,15 @@ def pdf(self, x):
+         p, a, b = self.p, self.a, self.b
+         return a*p/x*((x/b)**(a*p)/(((x/b)**a + 1)**(p + 1)))
+ 
++    def _cdf(self, x):
++        # CDF is (1 + (x/b)**(-a))**(-p) for x > 0
++        # See: https://en.wikipedia.org/wiki/Dagum_distribution
++        p, a, b = self.p, self.a, self.b
++        return Piecewise(
++            ((1 + (x/b)**(-a))**(-p), x > 0),
++            (0, True) # x <= 0
++        )
++
+ 
+ def Dagum(name, p, a, b):
+     r"""
+@@ -1042,6 +1062,16 @@ def pdf(self, x):
+         a, s, m = self.a, self.s, self.m
+         return a/s * ((x-m)/s)**(-1-a) * exp(-((x-m)/s)**(-a))
+ 
++    def _cdf(self, x):
++        # CDF is exp(-((x-m)/s)**(-a)) for x > m
++        # See: https://en.wikipedia.org/wiki/Fr%C3%A9chet_distribution
++        a, s, m = self.a, self.s, self.m
++        term = ((x - m) / s)**(-a)
++        return Piecewise(
++            (exp(-term), x > m),
++            (0, True) # x <= m
++        )
++
+ def Frechet(name, a, s=1, m=0):
+     r"""
+     Create a continuous random variable with a Frechet distribution.
+@@ -1108,6 +1138,28 @@ def pdf(self, x):
+         k, theta = self.k, self.theta
+         return x**(k - 1) * exp(-x/theta) / (gamma(k)*theta**k)
+ 
++    def _cdf(self, x):
++        # CDF is P(k, x/theta) = lowergamma(k, x/theta) / gamma(k)
++        # P is the regularized lower incomplete gamma function
++        # See: https://en.wikipedia.org/wiki/Gamma_distribution
++        # For integer k (Erlang distribution), CDF is 1 - exp(-x/theta) * Sum_{i=0}^{k-1} ((x/theta)**i / i!)
++        k, theta = self.k, self.theta
++        if k.is_Integer and k > 0:
++            # Use Erlang CDF formula for integer k > 0
++            # Note: Erlang uses rate lambda = 1/theta
++            l = 1/theta
++            i = Dummy('i', integer=True)
++            sum_term = Sum( (l*x)**i / factorial(i), (i, 0, k-1))
++            cdf_expr = 1 - exp(-l*x) * sum_term.doit()
++        else:
++            # Use general Gamma CDF formula
++            cdf_expr = lowergamma(k, x/theta) / gamma(k)
++
++        return Piecewise(
++            (cdf_expr, x >= 0),
++            (0, True) # x < 0
++        )
++
+     def sample(self):
+         return random.gammavariate(self.k, self.theta)
+ 
+@@ -1200,6 +1252,15 @@ def pdf(self, x):
+         a, b = self.a, self.b
+         return b**a/gamma(a) * x**(-a-1) * exp(-b/x)
+ 
++    def _cdf(self, x):
++        # CDF is Gamma(a, b/x) / Gamma(a) where Gamma is upper incomplete gamma
++        # See: https://en.wikipedia.org/wiki/Inverse-gamma_distribution
++        a, b = self.a, self.b
++        return Piecewise(
++            (uppergamma(a, b/x) / gamma(a), x > 0),
++            (0, True) # x <= 0
++        )
++
+ def GammaInverse(name, a, b):
+     r"""
+     Create a continuous random variable with an inverse Gamma distribution.
+@@ -1374,7 +1435,7 @@ def Gompertz(name, b, eta):
+ class KumaraswamyDistribution(SingleContinuousDistribution):
+     _argnames = ('a', 'b')
+ 
+-    set = Interval(0, oo)
++    set = Interval(0, 1)
+ 
+     @staticmethod
+     def check(a, b):
+@@ -1385,6 +1446,16 @@ def pdf(self, x):
+         a, b = self.a, self.b
+         return a * b * x**(a-1) * (1-x**a)**(b-1)
+ 
++    def _cdf(self, x):
++        # CDF is 1 - (1 - x**a)**b for x in [0, 1]
++        # See: https://en.wikipedia.org/wiki/Kumaraswamy_distribution
++        a, b = self.a, self.b
++        return Piecewise(
++            (0, x < 0),
++            (1 - (1 - x**a)**b, And(0 <= x, x <= 1)),
++            (1, x > 1)
++        )
++
+ def Kumaraswamy(name, a, b):
+     r"""
+     Create a Continuous Random Variable with a Kumaraswamy distribution.
+@@ -1445,6 +1516,17 @@ def pdf(self, x):
+         mu, b = self.mu, self.b
+         return 1/(2*b)*exp(-Abs(x - mu)/b)
+ 
++    def _cdf(self, x):
++        # CDF is piecewise:
++        # 0.5 * exp((x - mu) / b) if x < mu
++        # 1 - 0.5 * exp(-(x - mu) / b) if x >= mu
++        # See: https://en.wikipedia.org/wiki/Laplace_distribution
++        mu, b = self.mu, self.b
++        return Piecewise(
++            (S.Half * exp((x - mu) / b), x < mu),
++            (1 - S.Half * exp(-(x - mu) / b), True) # x >= mu
++        )
++
+ 
+ def Laplace(name, mu, b):
+     r"""
+@@ -1501,6 +1583,12 @@ def pdf(self, x):
+         mu, s = self.mu, self.s
+         return exp(-(x - mu)/s)/(s*(1 + exp(-(x - mu)/s))**2)
+ 
++    def _cdf(self, x):
++        # CDF is 1 / (1 + exp(-(x - mu) / s))
++        # See: https://en.wikipedia.org/wiki/Logistic_distribution
++        mu, s = self.mu, self.s
++        return 1 / (1 + exp(-(x - mu) / s))
++
+ 
+ def Logistic(name, mu, s):
+     r"""
+@@ -1711,6 +1799,17 @@ def pdf(self, x):
+         mu, omega = self.mu, self.omega
+         return 2*mu**mu/(gamma(mu)*omega**mu)*x**(2*mu - 1)*exp(-mu/omega*x**2)
+ 
++    def _cdf(self, x):
++        # CDF is P(mu, mu*x**2/omega) = lowergamma(mu, mu*x**2/omega) / gamma(mu)
++        # P is the regularized lower incomplete gamma function
++        # See: https://en.wikipedia.org/wiki/Nakagami_distribution
++        mu, omega = self.mu, self.omega
++        arg = mu * x**2 / omega
++        return Piecewise(
++            (lowergamma(mu, arg) / gamma(mu), x >= 0),
++            (0, True) # x < 0
++        )
++
+ 
+ def Nakagami(name, mu, omega):
+     r"""
+@@ -2227,6 +2326,15 @@ def pdf(self, x):
+         nu = self.nu
+         return 1/(sqrt(nu)*beta_fn(S(1)/2, nu/2))*(1 + x**2/nu)**(-(nu + 1)/2)
+ 
++    def _cdf(self, x):
++        # CDF F(x) = 1/2 + x * Gamma((nu+1)/2) / (sqrt(nu*pi) * Gamma(nu/2)) * hyper([1/2, (nu+1)/2], [3/2], -x**2/nu)
++        # See: https://en.wikipedia.org/wiki/Student%27s_t-distribution#Cumulative_distribution_function
++        # Note: hyper([a, b], [c], z) is the Gaussian hypergeometric function 2F1(a, b; c; z)
++        nu = self.nu
++        term = x * gamma((nu + 1)/2) / (sqrt(nu*pi) * gamma(nu/2)) * \
++               hyper([S.Half, (nu + 1)/2], [S(3)/2], -x**2/nu)
++        return S.Half + term
++
+ 
+ def StudentT(name, nu):
+     r"""
+@@ -2554,6 +2662,18 @@ def pdf(self, x):
+         return 1/factorial(
+             n - 1)*Sum((-1)**k*binomial(n, k)*(x - k)**(n - 1), (k, 0, floor(x)))
+ 
++    def _cdf(self, x):
++        # CDF is (1/n!) * Sum_{k=0}^{floor(x)} (-1)^k * binomial(n, k) * (x - k)**n
++        # See: https://en.wikipedia.org/wiki/Irwin%E2%80%93Hall_distribution#Cumulative_distribution_function
++        n = self.n
++        k = Dummy("k", integer=True)
++        cdf_expr = 1/factorial(n) * Sum((-1)**k * binomial(n, k) * (x - k)**n, (k, 0, floor(x)))
++        return Piecewise(
++            (0, x < 0),
++            (cdf_expr, And(0 <= x, x <= n)),
++            (1, x > n)
++        )
++
+ 
+ 
+ def UniformSum(name, n):

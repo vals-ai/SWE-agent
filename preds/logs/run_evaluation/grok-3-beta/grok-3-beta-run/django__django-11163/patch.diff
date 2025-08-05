@@ -1,0 +1,69 @@
+diff --git a/django/forms/models.py b/django/forms/models.py
+index d157c291ef..5edbbd376f 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -83,7 +83,7 @@ def model_to_dict(instance, fields=None, exclude=None):
+     for f in chain(opts.concrete_fields, opts.private_fields, opts.many_to_many):
+         if not getattr(f, 'editable', False):
+             continue
+-        if fields and f.name not in fields:
++        if fields is not None and f.name not in fields:
+             continue
+         if exclude and f.name in exclude:
+             continue
+diff --git a/reproduce_model_to_dict.py b/reproduce_model_to_dict.py
+new file mode 100644
+index 0000000000..81ef87a3f5
+--- /dev/null
++++ b/reproduce_model_to_dict.py
+@@ -0,0 +1,49 @@
++
++import django
++from django.conf import settings
++
++# Configure minimal Django settings for testing
++settings.configure(
++    INSTALLED_APPS=[
++        'django.contrib.contenttypes',
++    ],
++    DATABASES={
++        'default': {
++            'ENGINE': 'django.db.backends.sqlite3',
++            'NAME': ':memory:',
++        }
++    },
++)
++
++django.setup()
++
++from django.db import models
++
++# Define a simple model for testing
++class TestModel(models.Model):
++    name = models.CharField(max_length=100)
++    age = models.IntegerField()
++    created = models.DateTimeField(auto_now_add=True)
++
++    class Meta:
++        app_label = 'test_app'
++
++# Create an instance of the model
++instance = TestModel(name="Test", age=30)
++
++# Test model_to_dict with empty fields list
++from django.forms.models import model_to_dict
++result = model_to_dict(instance, fields=[])
++print("Result with empty fields list:", result)
++
++# Verify if the result is an empty dict
++if result == {}:
++    print("Test passed: Empty fields list returns empty dict")
++else:
++    print("Test failed: Empty fields list does not return empty dict")
++
++# Additional test with fields specified for comparison
++result_with_fields = model_to_dict(instance, fields=["name"])
++print("Result with fields=['name']:", result_with_fields)
++
++print("Script completed successfully, no errors.")
+\ No newline at end of file

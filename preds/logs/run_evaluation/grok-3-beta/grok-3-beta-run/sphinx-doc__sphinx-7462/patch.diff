@@ -1,0 +1,48 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 000000000..64a1ad30b
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,6 @@
++
++from typing import Tuple
++
++def foo() -> Tuple[()]:
++    """Sample text."""
++    return ()
+\ No newline at end of file
+diff --git a/sphinx/domains/python.py b/sphinx/domains/python.py
+index 3ca730e30..b6a228a60 100644
+--- a/sphinx/domains/python.py
++++ b/sphinx/domains/python.py
+@@ -118,7 +118,8 @@ def _parse_annotation(annotation: str) -> List[Node]:
+             for elem in node.elts:
+                 result.extend(unparse(elem))
+                 result.append(addnodes.desc_sig_punctuation('', ', '))
+-            result.pop()
++            if result:
++                result.pop()
+             return result
+         else:
+             raise SyntaxError  # unsupported syntax
+diff --git a/test_tuple_annotations.py b/test_tuple_annotations.py
+new file mode 100644
+index 000000000..89000ba3f
+--- /dev/null
++++ b/test_tuple_annotations.py
+@@ -0,0 +1,14 @@
++
++from typing import Tuple
++
++def empty_tuple() -> Tuple[()]:
++    """Returns an empty tuple."""
++    return ()
++
++def single_element_tuple() -> Tuple[int]:
++    """Returns a single element tuple."""
++    return (1,)
++
++def multi_element_tuple() -> Tuple[int, str, float]:
++    """Returns a multi-element tuple."""
++    return (1, "test", 3.14)
+\ No newline at end of file

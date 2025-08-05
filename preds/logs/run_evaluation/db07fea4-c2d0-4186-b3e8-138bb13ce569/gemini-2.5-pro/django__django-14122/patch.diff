@@ -1,0 +1,65 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 850734709d..0af23856f8 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -38,6 +38,7 @@ class SQLCompiler:
+         self.select = None
+         self.annotation_col_map = None
+         self.klass_info = None
++        self._default_ordering_expressions = None
+         self._meta_ordering = None
+ 
+     def setup_query(self):
+@@ -122,6 +123,10 @@ class SQLCompiler:
+             # by reference.
+             if expr in ref_sources:
+                 continue
++            # If default ordering was stripped, don't add the corresponding
++            # expressions to the GROUP BY clause.
++            if self._meta_ordering and expr in self._default_ordering_expressions:
++                continue
+             cols = expr.get_group_by_cols()
+             for col in cols:
+                 expressions.append(col)
+@@ -359,6 +364,8 @@ class SQLCompiler:
+                     order_by.append((
+                         OrderBy(Ref(col, RawSQL(*self.query.extra[col])), descending=descending),
+                         True))
++        if self._meta_ordering:
++            self._default_ordering_expressions = {expr for expr, _ in order_by}
+         result = []
+         seen = set()
+ 
+diff --git a/tests/aggregation/models.py b/tests/aggregation/models.py
+index cfc261abcc..129b75a704 100644
+--- a/tests/aggregation/models.py
++++ b/tests/aggregation/models.py
+@@ -43,3 +43,14 @@ class Store(models.Model):
+ 
+     def __str__(self):
+         return self.name
++
++
++class Report(models.Model):
++    name = models.CharField(max_length=100)
++    value = models.IntegerField()
++
++    class Meta:
++        ordering = ['name']
++
++    def __str__(self):
++        return self.name
+\ No newline at end of file
+diff --git a/tests/aggregation/tests.py b/tests/aggregation/tests.py
+index 49123396dd..56bd740958 100644
+--- a/tests/aggregation/tests.py
++++ b/tests/aggregation/tests.py
+@@ -14,7 +14,7 @@ from django.test.testcases import skipUnlessDBFeature
+ from django.test.utils import Approximate, CaptureQueriesContext
+ from django.utils import timezone
+ 
+-from .models import Author, Book, Publisher, Store
++from .models import Author, Book, Publisher, Report, Store
+ 
+ 
+ class AggregateTestCase(TestCase):

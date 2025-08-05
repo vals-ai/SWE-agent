@@ -1,0 +1,30 @@
+diff --git a/django/db/models/sql/where.py b/django/db/models/sql/where.py
+index 795eff8395..b399c2824f 100644
+--- a/django/db/models/sql/where.py
++++ b/django/db/models/sql/where.py
+@@ -2,6 +2,8 @@
+ Code to manage the creation and SQL rendering of 'where' constraints.
+ """
+ 
++from django.db.models.lookups import In
++from django.db.models.query import QuerySet
+ from django.core.exceptions import EmptyResultSet
+ from django.utils import tree
+ from django.utils.functional import cached_property
+@@ -117,7 +119,15 @@ class WhereNode(tree.Node):
+     def get_group_by_cols(self, alias=None):
+         cols = []
+         for child in self.children:
+-            cols.extend(child.get_group_by_cols())
++            # Check if child is In(lhs, QuerySet)
++            if isinstance(child, In) and isinstance(child.rhs, QuerySet):
++                # If it is, only extend with the LHS columns.
++                # The QuerySet RHS shouldn't force grouping by its internal columns,
++                # only by the columns it's compared against (LHS).
++                cols.extend(child.lhs.get_group_by_cols())
++            else:
++                # Otherwise, use the default behavior
++                cols.extend(child.get_group_by_cols())
+         return cols
+ 
+     def get_source_expressions(self):

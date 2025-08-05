@@ -1,0 +1,64 @@
+diff --git a/reproduce_clone_issue.py b/reproduce_clone_issue.py
+new file mode 100644
+index 000000000..1df258e23
+--- /dev/null
++++ b/reproduce_clone_issue.py
+@@ -0,0 +1,10 @@
++
++from sklearn.preprocessing import StandardScaler
++from sklearn.base import clone
++
++# Attempt to clone an estimator with a parameter that is an estimator class
++try:
++    clone(StandardScaler(with_mean=StandardScaler))
++    print("Script completed successfully, no errors.")
++except Exception as e:
++    print("Error occurred:", str(e))
+\ No newline at end of file
+diff --git a/sklearn/base.py b/sklearn/base.py
+index 56ffb18bf..34998270c 100644
+--- a/sklearn/base.py
++++ b/sklearn/base.py
+@@ -48,7 +48,7 @@ def clone(estimator, safe=True):
+     # XXX: not handling dictionaries
+     if estimator_type in (list, tuple, set, frozenset):
+         return estimator_type([clone(e, safe=safe) for e in estimator])
+-    elif not hasattr(estimator, 'get_params'):
++    elif not hasattr(estimator, 'get_params') or isinstance(estimator, type):
+         if not safe:
+             return copy.deepcopy(estimator)
+         else:
+diff --git a/test_clone_edge_cases.py b/test_clone_edge_cases.py
+new file mode 100644
+index 000000000..c897b940f
+--- /dev/null
++++ b/test_clone_edge_cases.py
+@@ -0,0 +1,27 @@
++
++from sklearn.preprocessing import StandardScaler
++from sklearn.linear_model import LinearRegression
++from sklearn.base import clone
++
++# Test 1: Cloning with an estimator class as a parameter
++try:
++    clone(StandardScaler(with_mean=StandardScaler))
++    print("Test 1 passed: Cloning with estimator class as parameter.")
++except Exception as e:
++    print("Test 1 failed:", str(e))
++
++# Test 2: Cloning with a different estimator class as a parameter
++try:
++    clone(StandardScaler(with_mean=LinearRegression))
++    print("Test 2 passed: Cloning with different estimator class as parameter.")
++except Exception as e:
++    print("Test 2 failed:", str(e))
++
++# Test 3: Cloning with an instance as a parameter (should still work)
++try:
++    clone(StandardScaler(with_mean=StandardScaler()))
++    print("Test 3 passed: Cloning with estimator instance as parameter.")
++except Exception as e:
++    print("Test 3 failed:", str(e))
++
++print("All tests completed.")
+\ No newline at end of file

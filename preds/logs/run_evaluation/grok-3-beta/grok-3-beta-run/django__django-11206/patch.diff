@@ -1,0 +1,68 @@
+diff --git a/django/utils/numberformat.py b/django/utils/numberformat.py
+index 88b35fc435..d05764c8ca 100644
+--- a/django/utils/numberformat.py
++++ b/django/utils/numberformat.py
+@@ -31,6 +31,11 @@ def format(number, decimal_sep, decimal_pos=None, grouping=0, thousand_sep='',
+         # scientific notation to avoid high memory usage in {:f}'.format().
+         _, digits, exponent = number.as_tuple()
+         if abs(exponent) + len(digits) > 200:
++            # If decimal_pos is provided, check if the number is smaller than
++            # what can be represented with the given decimal positions.
++            if decimal_pos is not None and exponent < 0 and abs(exponent) > decimal_pos:
++                # Return a string of zeros after the decimal point.
++                return '0' + (decimal_sep + '0' * decimal_pos if decimal_pos > 0 else '')
+             number = '{:e}'.format(number)
+             coefficient, exponent = number.split('e')
+             # Format the coefficient.
+diff --git a/reproduce_numberformat.py b/reproduce_numberformat.py
+new file mode 100644
+index 0000000000..dc1744c40f
+--- /dev/null
++++ b/reproduce_numberformat.py
+@@ -0,0 +1,13 @@
++
++from decimal import Decimal
++import django.conf
++import django.utils.numberformat
++
++# Configure minimal Django settings
++django.conf.settings.configure(USE_L10N=False, USE_THOUSAND_SEPARATOR=False)
++
++nformat = django.utils.numberformat.format
++
++# Test cases from the issue
++print(nformat(Decimal('1e-199'), '.', decimal_pos=2))  # Expected '0.00'
++print(nformat(Decimal('1e-200'), '.', decimal_pos=2))  # Expected '0.00', but gets '1.00e-200'
+\ No newline at end of file
+diff --git a/test_numberformat_edge_cases.py b/test_numberformat_edge_cases.py
+new file mode 100644
+index 0000000000..f281a272c1
+--- /dev/null
++++ b/test_numberformat_edge_cases.py
+@@ -0,0 +1,25 @@
++
++from decimal import Decimal
++import django.conf
++import django.utils.numberformat
++
++# Configure minimal Django settings
++django.conf.settings.configure(USE_L10N=False, USE_THOUSAND_SEPARATOR=False)
++
++nformat = django.utils.numberformat.format
++
++# Test cases for different decimal positions and edge cases
++print("Testing with decimal_pos=0:")
++print(nformat(Decimal('1e-199'), '.', decimal_pos=0))  # Expected '0'
++
++print("\nTesting with decimal_pos=1:")
++print(nformat(Decimal('1e-199'), '.', decimal_pos=1))  # Expected '0.0'
++
++print("\nTesting with decimal_pos=3:")
++print(nformat(Decimal('1e-199'), '.', decimal_pos=3))  # Expected '0.000'
++
++print("\nTesting with very small number just above threshold:")
++print(nformat(Decimal('1e-2'), '.', decimal_pos=2))  # Expected '0.01'
++
++print("\nTesting with large number:")
++print(nformat(Decimal('1e200'), '.', decimal_pos=2))  # Expected scientific notation
+\ No newline at end of file

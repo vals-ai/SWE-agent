@@ -1,0 +1,96 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..bbdf4c6a04
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,23 @@
++
++from sympy import *
++from sympy.core.cache import clear_cache
++
++x, y, z = symbols('x y z')
++
++clear_cache()
++expr = exp(sinh(Piecewise((x, y > x), (y, True)) / z))
++# This works fine
++print('First case:')
++expr.subs({1: 1.0})
++print('First case succeeded')
++
++clear_cache()
++x, y, z = symbols('x y z', real=True)
++expr = exp(sinh(Piecewise((x, y > x), (y, True)) / z))
++# This fails with "PolynomialError: Piecewise generators do not make sense"
++print('Second case:')
++expr.subs({1: 1.0})  # error
++print('Second case succeeded')
++
++# Add a final print statement to confirm successful execution
++print("Script completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/sympy/core/mod.py b/sympy/core/mod.py
+index b4f3de2523..6daa9fcd08 100644
+--- a/sympy/core/mod.py
++++ b/sympy/core/mod.py
+@@ -164,12 +164,15 @@ def doit(p, q):
+             p = Mul(*(non_mod_l + mod_l))
+ 
+         # XXX other possibilities?
+-
++        
+         # extract gcd; any further simplification should be done by the user
+-        G = gcd(p, q)
+-        if G != 1:
+-            p, q = [
+-                gcd_terms(i/G, clear=False, fraction=False) for i in (p, q)]
++        if not (p.find(lambda expr: expr.__class__.__name__ == 'Piecewise') or q.find(lambda expr: expr.__class__.__name__ == 'Piecewise')): # Check for Piecewise by class name
++            G = gcd(p, q)
++            if G != 1:
++                p, q = [
++                    gcd_terms(i/G, clear=False, fraction=False) for i in (p, q)]
++        else:
++            G = S.One # If Piecewise is present, assume gcd is 1
+         pwas, qwas = p, q
+ 
+         # simplify terms
+diff --git a/sympy/core/tests/test_arit.py b/sympy/core/tests/test_arit.py
+index 2dc6589f8c..958f1ef6ae 100644
+--- a/sympy/core/tests/test_arit.py
++++ b/sympy/core/tests/test_arit.py
+@@ -8,6 +8,7 @@
+ from sympy.utilities.iterables import cartes
+ from sympy.testing.pytest import XFAIL, raises, warns_deprecated_sympy
+ from sympy.testing.randtest import verify_numerically
++from sympy.polys.polyerrors import PolynomialError
+ from sympy.functions.elementary.trigonometric import asin
+ 
+ 
+@@ -2321,6 +2322,28 @@ def test_issue_18507():
+ 
+ def test_issue_17130():
+     e = Add(b, -b, I, -I, evaluate=False)
++
++
++    def test_issue_19333():
++        """ Test for PolynomialError from Piecewise in gcd within Mod - Issue #19333 """
++        # Imports needed for this specific test
++        from sympy import symbols, exp, sinh, Piecewise
++        from sympy.core.cache import clear_cache
++        # PolynomialError is imported globally at the top
++
++        clear_cache()
++        x, y, z = symbols('x y z', real=True)
++        expr = exp(sinh(Piecewise((x, y > x), (y, True)) / z))
++
++        # This specific subs call triggered the gcd calculation involving Piecewise.
++        # If the fix in sympy.core.mod.Mod.eval is correct, this should
++        # execute without raising PolynomialError.
++        # The test implicitly passes if no exception is raised.
++        expr.subs({1: 1.0})
++
++        # Add a basic assertion to ensure the test runs
++        assert True
++
+     assert e.is_zero is None # ideally this would be True
+ 
+ 

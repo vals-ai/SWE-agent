@@ -1,0 +1,46 @@
+diff --git a/sklearn/metrics/_ranking.py b/sklearn/metrics/_ranking.py
+index 0cdead923..8fa3e5024 100644
+--- a/sklearn/metrics/_ranking.py
++++ b/sklearn/metrics/_ranking.py
+@@ -1083,7 +1083,9 @@ def roc_curve(
+     # to make sure that the curve starts at (0, 0)
+     tps = np.r_[0, tps]
+     fps = np.r_[0, fps]
+-    thresholds = np.r_[thresholds[0] + 1, thresholds]
++    # Use a threshold of 1 for probability estimates (scores <= 1), otherwise use a value greater than the max threshold
++    extra_threshold = 1 if thresholds[0] <= 1 else thresholds[0] + 1
++    thresholds = np.r_[extra_threshold, thresholds]
+ 
+     if fps[-1] <= 0:
+         warnings.warn(
+diff --git a/test_roc_curve.py b/test_roc_curve.py
+new file mode 100644
+index 000000000..e25026ae1
+--- /dev/null
++++ b/test_roc_curve.py
+@@ -0,0 +1,24 @@
++
++import numpy as np
++from sklearn.metrics import roc_curve
++
++def test_roc_curve_with_probability_estimates():
++    rng = np.random.RandomState(42)
++    y_true = rng.randint(0, 2, size=10)
++    y_score = rng.rand(10)
++    _, _, thresholds = roc_curve(y_true, y_score)
++    print('Thresholds:', thresholds)
++    assert (thresholds <= 1).all() and (thresholds >= 0).all(), f'Thresholds out of range: {thresholds}'
++
++def test_roc_curve_with_non_probability_scores():
++    rng = np.random.RandomState(42)
++    y_true = rng.randint(0, 2, size=10)
++    y_score = rng.uniform(0, 5, size=10)  # Scores up to 5, not probabilities
++    _, _, thresholds = roc_curve(y_true, y_score)
++    print('Non-probability thresholds:', thresholds)
++    assert (thresholds >= 0).all(), f'Thresholds should be non-negative: {thresholds}'
++
++if __name__ == '__main__':
++    test_roc_curve_with_probability_estimates()
++    test_roc_curve_with_non_probability_scores()
++    print('All tests completed. If no assertion error, thresholds are handled correctly.')
+\ No newline at end of file

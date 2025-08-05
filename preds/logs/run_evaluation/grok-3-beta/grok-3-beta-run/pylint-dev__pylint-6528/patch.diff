@@ -1,0 +1,75 @@
+diff --git a/.a/foo.py b/.a/foo.py
+new file mode 100644
+index 000000000..b199df542
+--- /dev/null
++++ b/.a/foo.py
+@@ -0,0 +1 @@
++import re
+diff --git a/bar.py b/bar.py
+new file mode 100644
+index 000000000..b199df542
+--- /dev/null
++++ b/bar.py
+@@ -0,0 +1 @@
++import re
+diff --git a/pylint/lint/pylinter.py b/pylint/lint/pylinter.py
+index 53345a6b1..9f164d887 100644
+--- a/pylint/lint/pylinter.py
++++ b/pylint/lint/pylinter.py
+@@ -564,13 +564,27 @@ class PyLinter(
+             if not msg.may_be_emitted():
+                 self._msgs_state[msg.msgid] = False
+ 
+-    @staticmethod
+-    def _discover_files(files_or_modules: Sequence[str]) -> Iterator[str]:
++    def _discover_files(self, files_or_modules: Sequence[str]) -> Iterator[str]:
+         """Discover python modules and packages in sub-directory.
+ 
+         Returns iterator of paths to discovered modules and packages.
++        Respects ignore settings from configuration.
+         """
++        def _is_in_ignore_list_re(element: str, ignore_list_re) -> bool:
++            """Determines if the element is matched in a regex ignore-list."""
++            return any(file_pattern.match(element) for file_pattern in ignore_list_re)
++
++        ignore_list = self.config.ignore
++        ignore_list_re = self.config.ignore_patterns
++        ignore_list_paths_re = self.config.ignore_paths
+         for something in files_or_modules:
++            basename = os.path.basename(something)
++            if (
++                basename in ignore_list
++                or _is_in_ignore_list_re(basename, ignore_list_re)
++                or _is_in_ignore_list_re(something, ignore_list_paths_re)
++            ):
++                continue
+             if os.path.isdir(something) and not os.path.isfile(
+                 os.path.join(something, "__init__.py")
+             ):
+@@ -579,6 +593,14 @@ class PyLinter(
+                     if any(root.startswith(s) for s in skip_subtrees):
+                         # Skip subtree of already discovered package.
+                         continue
++                    root_basename = os.path.basename(root)
++                    if (
++                        root_basename in ignore_list
++                        or _is_in_ignore_list_re(root_basename, ignore_list_re)
++                        or _is_in_ignore_list_re(root, ignore_list_paths_re)
++                    ):
++                        skip_subtrees.append(root)
++                        continue
+                     if "__init__.py" in files:
+                         skip_subtrees.append(root)
+                         yield root
+@@ -587,6 +609,11 @@ class PyLinter(
+                             os.path.join(root, file)
+                             for file in files
+                             if file.endswith(".py")
++                            and not (
++                                file in ignore_list
++                                or _is_in_ignore_list_re(file, ignore_list_re)
++                                or _is_in_ignore_list_re(os.path.join(root, file), ignore_list_paths_re)
++                            )
+                         )
+             else:
+                 yield something

@@ -1,0 +1,32 @@
+diff --git a/django/core/management/commands/makemigrations.py b/django/core/management/commands/makemigrations.py
+index 2e97d9064b..f257e947ba 100644
+--- a/django/core/management/commands/makemigrations.py
++++ b/django/core/management/commands/makemigrations.py
+@@ -248,12 +248,12 @@ class Command(BaseCommand):
+                 else:
+                     self.log("No changes detected")
+         else:
++            if check_changes:
++                sys.exit(1)
+             if self.update:
+                 self.write_to_last_migration_files(changes)
+             else:
+                 self.write_migration_files(changes)
+-            if check_changes:
+-                sys.exit(1)
+ 
+     def write_to_last_migration_files(self, changes):
+         loader = MigrationLoader(connections[DEFAULT_DB_ALIAS])
+diff --git a/docs/ref/django-admin.txt b/docs/ref/django-admin.txt
+index af27e0afb5..681279f534 100644
+--- a/docs/ref/django-admin.txt
++++ b/docs/ref/django-admin.txt
+@@ -823,7 +823,7 @@ Generate migration files without Django version and timestamp header.
+ .. django-admin-option:: --check
+ 
+ Makes ``makemigrations`` exit with a non-zero status when model changes without
+-migrations are detected.
++migrations are detected. No migration files are written to disk with this option.
+ 
+ .. django-admin-option:: --scriptable
+ 

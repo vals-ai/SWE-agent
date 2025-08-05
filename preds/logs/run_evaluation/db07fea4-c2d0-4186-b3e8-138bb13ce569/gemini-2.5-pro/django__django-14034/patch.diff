@@ -1,0 +1,141 @@
+diff --git a/django/forms/fields.py b/django/forms/fields.py
+index 65d6a9ec82..94a7e0d6b1 100644
+--- a/django/forms/fields.py
++++ b/django/forms/fields.py
+@@ -1025,7 +1025,7 @@ class MultiValueField(Field):
+             if not value or not [v for v in value if v not in self.empty_values]:
+                 if self.required:
+                     raise ValidationError(self.error_messages['required'], code='required')
+-                else:
++                elif self.require_all_fields:
+                     return self.compress([])
+         else:
+             raise ValidationError(self.error_messages['invalid'], code='invalid')
+diff --git a/reproduce_bug.py b/reproduce_bug.py
+new file mode 100644
+index 0000000000..47faf4f22e
+--- /dev/null
++++ b/reproduce_bug.py
+@@ -0,0 +1,75 @@
++import django
++from django.conf import settings
++
++# Configure minimal Django settings
++if not settings.configured:
++    settings.configure(
++        SECRET_KEY='a-dummy-secret-key',
++        # Add other necessary settings if needed
++    )
++django.setup() # Required for newer Django versions
++
++from django.forms import (
++    Form,
++    CharField,
++    MultiValueField,
++    MultiWidget,
++)
++
++# Need to define a basic MultiWidget for the example
++class SimpleMultiWidget(MultiWidget):
++    def decompress(self, value):
++        if value:
++            return value
++        return ['', '']
++
++class MF(MultiValueField):
++    # widget = MultiWidget # This needs to be instantiated
++    def __init__(self, **kwargs):
++        fields = [
++            CharField(required=False),
++            CharField(required=True),
++        ]
++        # Instantiate the widget
++        widget = SimpleMultiWidget(widgets=[
++            f.widget for f in fields
++        ])
++        super().__init__(
++            fields=fields,
++            widget=widget,
++            require_all_fields=False,
++            required=False, # The MultiValueField itself is not required
++            **kwargs
++        )
++
++    def compress(self, data_list):
++        # Simple compress just joins the values
++        return '-'.join(data_list) if data_list else ''
++
++class F(Form):
++    mf = MF()
++
++# Test case 1: All fields empty
++print("Test Case 1: All fields empty")
++f1 = F({
++    'mf_0': '',
++    'mf_1': '',
++})
++print(f"f1.is_valid(): {f1.is_valid()}")
++print(f"f1.errors: {f1.errors}")
++# Expected: f1.is_valid() == False because mf_1 is required by its CharField
++
++print("\n---\n")
++
++# Test case 2: One field non-empty, required field empty
++print("Test Case 2: One field non-empty, required field empty")
++f2 = F({
++    'mf_0': 'xxx',
++    'mf_1': '',
++})
++print(f"f2.is_valid(): {f2.is_valid()}")
++print(f"f2.errors: {f2.errors}")
++# Expected: f2.is_valid() == False
++
++print("\n---\n")
++print("Script completed.")
+\ No newline at end of file
+diff --git a/tests/forms_tests/field_tests/test_multivaluefield.py b/tests/forms_tests/field_tests/test_multivaluefield.py
+index 29287d0b01..e52f35efdc 100644
+--- a/tests/forms_tests/field_tests/test_multivaluefield.py
++++ b/tests/forms_tests/field_tests/test_multivaluefield.py
+@@ -5,6 +5,7 @@ from django.forms import (
+     CharField, Form, MultipleChoiceField, MultiValueField, MultiWidget,
+     SelectMultiple, SplitDateTimeField, SplitDateTimeWidget, TextInput,
+ )
++from django.utils.translation import gettext_lazy as _
+ from django.test import SimpleTestCase
+ 
+ beatles = (('J', 'John'), ('P', 'Paul'), ('G', 'George'), ('R', 'Ringo'))
+@@ -171,4 +172,33 @@ class MultiValueFieldTest(SimpleTestCase):
+             'field1_2_1': '06:24:00',
+         })
+         form.is_valid()
++
++    def test_required_subfield_with_empty_data_and_require_all_fields_false(self):
++        """
++        Validation error is raised for a required subfield when all fields
++        are empty and require_all_fields=False.
++        """
++        class TestForm(Form):
++            mvf = MultiValueField(
++                fields=(
++                    CharField(required=False),
++                    CharField(required=True),
++                ),
++                required=False,
++                require_all_fields=False,
++            )
++
++        form = TestForm({'mvf_0': '', 'mvf_1': ''})
++        self.assertFalse(form.is_valid())
++        # The error comes from the MultiValueField itself, not the subfield directly
++        self.assertEqual(form.errors, {'mvf': [_('Enter a complete value.')]})
++
++        # Also test the case where one field has data but the required one doesn't
++        form = TestForm({'mvf_0': 'xxx', 'mvf_1': ''})
++        self.assertFalse(form.is_valid())
++        self.assertEqual(form.errors, {'mvf': [_('Enter a complete value.')]})
++
++        # Test case where it should be valid
++        form = TestForm({'mvf_0': '', 'mvf_1': 'yyy'})
++        self.assertTrue(form.is_valid())
+         self.assertEqual(form.cleaned_data['field1'], 'some text,JP,2007-04-25 06:24:00')

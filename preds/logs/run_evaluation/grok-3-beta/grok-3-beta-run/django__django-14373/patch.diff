@@ -1,0 +1,49 @@
+diff --git a/django/utils/dateformat.py b/django/utils/dateformat.py
+index 38e89c47bb..ac399596b8 100644
+--- a/django/utils/dateformat.py
++++ b/django/utils/dateformat.py
+@@ -313,8 +313,8 @@ class DateFormat(TimeFormat):
+         return '%02d' % (self.data.year % 100)
+ 
+     def Y(self):
+-        "Year, 4 digits; e.g. '1999'"
+-        return self.data.year
++        "Year, 4 digits with leading zeros; e.g. '1999' or '0999'"
++        return '%04d' % self.data.year
+ 
+     def z(self):
+         """Day of the year, i.e. 1 to 366."""
+diff --git a/reproduce_dateformat.py b/reproduce_dateformat.py
+new file mode 100644
+index 0000000000..4d8e7adb94
+--- /dev/null
++++ b/reproduce_dateformat.py
+@@ -0,0 +1,27 @@
++
++from django.utils.dateformat import DateFormat
++from datetime import datetime
++import django.conf as conf
++
++# Configure minimal Django settings
++conf.settings.configure(TIME_ZONE='UTC')
++
++# Test with a year less than 1000
++date = datetime(999, 1, 1)
++formatter = DateFormat(date)
++print(f'Year with Y format: {formatter.Y()}')
++
++# Test with a year greater than 1000 for comparison
++date2 = datetime(2023, 1, 1)
++formatter2 = DateFormat(date2)
++
++# Test with year 1 for extreme early year
++date3 = datetime(1, 1, 1)
++formatter3 = DateFormat(date3)
++print(f'Year with Y format (year 1): {formatter3.Y()}')
++
++# Test with year 100 for another early year
++date4 = datetime(100, 1, 1)
++formatter4 = DateFormat(date4)
++print(f'Year with Y format (year 100): {formatter4.Y()}')
++print(f'Year with Y format (modern): {formatter2.Y()}')
+\ No newline at end of file

@@ -1,0 +1,27 @@
+diff --git a/django/db/migrations/operations/models.py b/django/db/migrations/operations/models.py
+index d17232e4ec..e23b2adfa6 100644
+--- a/django/db/migrations/operations/models.py
++++ b/django/db/migrations/operations/models.py
+@@ -978,6 +978,7 @@ class RenameIndex(IndexOperation):
+ 
+         self.database_forwards(app_label, schema_editor, from_state, to_state)
+ 
++        # Restore state for further operations.
+         self.new_name_lower, self.old_name_lower = (
+             self.old_name_lower,
+             self.new_name_lower,
+diff --git a/tests/migrations/test_operations.py b/tests/migrations/test_operations.py
+index cfd28b1b39..c0a55023bb 100644
+--- a/tests/migrations/test_operations.py
++++ b/tests/migrations/test_operations.py
+@@ -2988,6 +2988,10 @@ class OperationTests(OperationTestBase):
+         with connection.schema_editor() as editor, self.assertNumQueries(0):
+             operation.database_backwards(app_label, editor, new_state, project_state)
+         self.assertIndexNameExists(table_name, "new_pony_test_idx")
++        # Re-apply renaming.
++        with connection.schema_editor() as editor:
++            operation.database_forwards(app_label, editor, project_state, new_state)
++        self.assertIndexNameExists(table_name, "new_pony_test_idx")
+         # Deconstruction.
+         definition = operation.deconstruct()
+         self.assertEqual(definition[0], "RenameIndex")

@@ -1,0 +1,98 @@
+diff --git a/lib/matplotlib/tests/test_text.py b/lib/matplotlib/tests/test_text.py
+index f86b9f111b..3ba82205ae 100644
+--- a/lib/matplotlib/tests/test_text.py
++++ b/lib/matplotlib/tests/test_text.py
+@@ -888,6 +888,49 @@ def test_metrics_cache():
+     assert info.hits > info.misses
+ 
+ 
++
++def test_text_antialiased():
++    # Test default behavior (uses rcParams)
++    fig, ax = plt.subplots()
++    txt = ax.text(0.5, 0.5, "Default Antialiased")
++    assert txt.get_antialiased() == mpl.rcParams['text.antialiased']
++
++    # Test setting antialiased to True
++    txt.set_antialiased(True)
++    assert txt.get_antialiased() is True
++    # Check if draw uses the setting (indirectly by checking GC)
++    # We can't easily inspect GC state post-draw here, rely on code change.
++
++    # Test setting antialiased to False
++    txt.set_antialiased(False)
++    assert txt.get_antialiased() is False
++
++    # Test setting back to None (should revert to rcParams)
++    # Note: set_antialiased(None) is not type-hinted but tests internal logic
++    try:
++        txt.set_antialiased(None)
++    except TypeError:
++        # If strict type checking is enforced elsewhere, this might fail.
++        # The core logic in get_antialiased handles None correctly.
++        pass 
++    else:
++        assert txt.get_antialiased() == mpl.rcParams['text.antialiased']
++
++    # Test invalid type
++    with pytest.raises(TypeError):
++        txt.set_antialiased("not a bool")
++
++    # Test Annotation antialiased (should inherit)
++    ann = ax.annotate("Annotation AA", xy=(0.1, 0.1), xytext=(0.2, 0.2))
++    assert ann.get_antialiased() == mpl.rcParams['text.antialiased']
++    ann.set_antialiased(True)
++    assert ann.get_antialiased() is True
++    ann.set_antialiased(False)
++    assert ann.get_antialiased() is False
++
++    print("Script completed successfully, no errors.") # Added for confirmation
++
++
+ def test_annotate_offset_fontsize():
+     # Test that offset_fontsize parameter works and uses accurate values
+     fig, ax = plt.subplots()
+diff --git a/lib/matplotlib/text.py b/lib/matplotlib/text.py
+index 4591316cf9..be53649f35 100644
+--- a/lib/matplotlib/text.py
++++ b/lib/matplotlib/text.py
+@@ -187,6 +187,7 @@ class Text(Artist):
+             linespacing = 1.2  # Maybe use rcParam later.
+         self.set_linespacing(linespacing)
+         self.set_rotation_mode(rotation_mode)
++        self._antialiased = None
+ 
+     def update(self, kwargs):
+         # docstring inherited
+@@ -735,6 +736,7 @@ class Text(Artist):
+ 
+             gc = renderer.new_gc()
+             gc.set_foreground(self.get_color())
++            gc.set_antialiased(self.get_antialiased())
+             gc.set_alpha(self.get_alpha())
+             gc.set_url(self._url)
+             self._set_gc_clip(gc)
+@@ -960,6 +962,23 @@ class Text(Artist):
+         if not cbook._str_equal(color, "auto"):
+             mpl.colors._check_color_like(color=color)
+         self._color = color
++
++    def get_antialiased(self):
++        """Return whether the text is drawn antialiased."""
++        if self._antialiased is None:
++            return mpl.rcParams['text.antialiased']
++        return self._antialiased
++
++    def set_antialiased(self, antialiased):
++        """
++        Set whether the text is drawn antialiased.
++
++        Parameters
++        ----------
++        antialiased : bool
++        """
++        _api.check_isinstance(bool, antialiased=antialiased)
++        self._antialiased = antialiased
+         self.stale = True
+ 
+     def set_horizontalalignment(self, align):

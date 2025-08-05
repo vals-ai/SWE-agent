@@ -1,0 +1,42 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..dc15bf1fea
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,35 @@
++
++from django.template import Template, Context
++from django.conf import settings
++from django.utils.functional import lazy
++import django
++from django.utils.translation import gettext_lazy
++
++# Configure minimal settings
++settings.configure(
++    TEMPLATES=[
++        {
++            'BACKEND': 'django.template.backends.django.DjangoTemplates',
++        },
++    ]
++)
++
++# Create a lazy string
++lazy_string = gettext_lazy("World")
++
++# Create a template using the 'add' filter
++template_string = "{{ 'Hello ' | add:lazy_string }}"
++template = Template(template_string)
++
++# Create a context
++context = Context({'lazy_string': lazy_string})
++
++# Render the template and print the output
++try:
++    output = template.render(context)
++    print(f"Rendered output: '{output}'")
++except Exception as e:
++    print(f"An error occurred: {e}")
++
++# Add a success message for clarity
++print("Script completed.")
+\ No newline at end of file

@@ -1,0 +1,93 @@
+diff --git a/lib/matplotlib/cbook.py b/lib/matplotlib/cbook.py
+index c9699b2e21..e19023572d 100644
+--- a/lib/matplotlib/cbook.py
++++ b/lib/matplotlib/cbook.py
+@@ -840,6 +840,26 @@ class Grouper:
+         for group in unique_groups.values():
+             yield [x() for x in group]
+ 
++    def __getstate__(self):
++        # Convert weakrefs to actual objects for pickling, if they exist
++        mapping = {}
++        for key, group in self._mapping.items():
++            obj = key()
++            if obj is not None:
++                group_objs = [ref() for ref in group if ref() is not None]
++                if group_objs:  # Only include non-empty groups
++                    mapping[id(obj)] = [id(o) for o in group_objs]
++        return {'mapping_ids': mapping}
++
++    def __setstate__(self, state):
++        # Reconstruct weakref mapping from object IDs after unpickling
++        # Note: This assumes objects are available in memory or have been unpickled
++        self._mapping = {}
++        # We can't restore weakrefs directly from IDs without the objects,
++        # so we'll initialize an empty mapping or defer population if needed.
++        # For now, initialize as empty since we can't guarantee object availability.
++        # If objects are re-joined later, the mapping will be repopulated.
++
+     def get_siblings(self, a):
+         """Return all of the items joined with *a*, including itself."""
+         self.clean()
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..40ebda6608
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,19 @@
++
++import matplotlib.pyplot as plt
++import pickle
++
++fig = plt.figure()
++ax1 = fig.add_subplot(211)
++ax2 = fig.add_subplot(212)
++time=[0,1,2,3,4]
++speed=[40000,4300,4500,4700,4800]
++acc=[10,11,12,13,14]
++ax1.plot(time,speed)
++ax1.set_ylabel('speed')
++ax2.plot(time,acc)
++ax2.set_ylabel('acc')
++
++fig.align_labels() ##pickling works after removing this line 
++
++pickle.dumps(fig)
++plt.show()
+\ No newline at end of file
+diff --git a/test_unpickle.py b/test_unpickle.py
+new file mode 100644
+index 0000000000..a61526145a
+--- /dev/null
++++ b/test_unpickle.py
+@@ -0,0 +1,29 @@
++
++import matplotlib.pyplot as plt
++import pickle
++
++# Create a figure with multiple axes
++fig = plt.figure()
++ax1 = fig.add_subplot(211)
++ax2 = fig.add_subplot(212)
++time = [0, 1, 2, 3, 4]
++speed = [40000, 4300, 4500, 4700, 4800]
++acc = [10, 11, 12, 13, 14]
++ax1.plot(time, speed)
++ax1.set_ylabel('speed')
++ax2.plot(time, acc)
++ax2.set_ylabel('acc')
++
++# Align labels
++fig.align_labels()
++
++# Test pickling and unpickling
++pickled_fig = pickle.dumps(fig)
++unpickled_fig = pickle.loads(pickled_fig)
++
++# If we reach here without errors, the test passed
++print('Test passed: Figure with aligned labels was successfully pickled and unpickled.')
++
++# Close figures to avoid display issues in non-interactive environments
++plt.close(fig)
++plt.close(unpickled_fig)
+\ No newline at end of file

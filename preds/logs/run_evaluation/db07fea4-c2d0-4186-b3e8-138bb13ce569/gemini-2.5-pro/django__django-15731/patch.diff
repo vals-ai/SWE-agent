@@ -1,0 +1,106 @@
+diff --git a/app/__init__.py b/app/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/app/apps.py b/app/apps.py
+new file mode 100644
+index 0000000000..9c6f0aa753
+--- /dev/null
++++ b/app/apps.py
+@@ -0,0 +1,6 @@
++
++from django.apps import AppConfig
++
++class MyAppConfig(AppConfig):
++    name = 'app'
++    verbose_name = 'My App'
+\ No newline at end of file
+diff --git a/django/db/models/manager.py b/django/db/models/manager.py
+index e37e56cd17..426c9c1092 100644
+--- a/django/db/models/manager.py
++++ b/django/db/models/manager.py
+@@ -1,4 +1,5 @@
+ import copy
++import functools
+ import inspect
+ from importlib import import_module
+ 
+@@ -81,11 +82,10 @@ class BaseManager:
+     @classmethod
+     def _get_queryset_methods(cls, queryset_class):
+         def create_method(name, method):
++            @functools.wraps(method)
+             def manager_method(self, *args, **kwargs):
+                 return getattr(self.get_queryset(), name)(*args, **kwargs)
+ 
+-            manager_method.__name__ = method.__name__
+-            manager_method.__doc__ = method.__doc__
+             return manager_method
+ 
+         new_methods = {}
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..23d2d39a48
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,43 @@
++
++import os
++import sys
++import inspect
++import django
++from django.conf import settings
++from django.db import models
++
++# Minimal Django settings setup
++if not settings.configured:
++    settings.configure(
++        SECRET_KEY='fake-key',
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'django.contrib.auth', # contenttypes dependency needs this
++            'app', # Dummy app label
++        ],
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        },
++        USE_TZ=False # Avoid timezone warnings
++    )
++    django.setup()
++
++# Define the model directly in the script
++class Person(models.Model):
++    name = models.CharField(max_length=100)
++
++    class Meta:
++        app_label = 'app' # Needs an app_label if not in models.py
++
++# Run the inspection as described in the issue
++print(f"Signature for Person.objects.bulk_create:")
++try:
++    sig = inspect.signature(Person.objects.bulk_create)
++    print(sig)
++except Exception as e:
++    print(f"Error inspecting signature: {e}")
++
++print("\nScript completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/tests/custom_managers/tests.py b/tests/custom_managers/tests.py
+index 6b90a6ce37..5d6b361465 100644
+--- a/tests/custom_managers/tests.py
++++ b/tests/custom_managers/tests.py
+@@ -1,3 +1,4 @@
++import inspect
+ from django.db import models
+ from django.test import TestCase
+ 
+@@ -18,6 +19,7 @@ from .models import (
+     PublishedBookManager,
+     RelatedModel,
+     RestrictedModel,
++    CustomInitQuerySet,
+ )
+ 
+ 

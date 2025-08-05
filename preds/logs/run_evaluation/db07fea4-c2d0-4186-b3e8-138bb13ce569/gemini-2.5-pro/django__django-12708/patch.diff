@@ -1,0 +1,135 @@
+diff --git a/django/db/backends/base/schema.py b/django/db/backends/base/schema.py
+index 61f88401ab..7d12135dda 100644
+--- a/django/db/backends/base/schema.py
++++ b/django/db/backends/base/schema.py
+@@ -403,16 +403,33 @@ class BaseDatabaseSchemaEditor:
+         meta_constraint_names = {constraint.name for constraint in model._meta.constraints}
+         meta_index_names = {constraint.name for constraint in model._meta.indexes}
+         columns = [model._meta.get_field(field).column for field in fields]
+-        constraint_names = self._constraint_names(
+-            model, columns, exclude=meta_constraint_names | meta_index_names,
+-            **constraint_kwargs
+-        )
++        # Filter constraints to find the exact index to delete.
++        constraints = self.connection.introspection.get_constraints(self.connection.cursor(), model._meta.db_table)
++        constraint_names = []
++        for name, details in constraints.items():
++            # Check if the constraint is an index, not unique, matches the columns,
++            # and is not one of the explicitly named constraints or indexes in Meta.
++            if (details['index'] and not details['unique'] and
++                    details['columns'] == columns and
++                    name not in (meta_constraint_names | meta_index_names)):
++                constraint_names.append(name)
++
+         if len(constraint_names) != 1:
+-            raise ValueError("Found wrong number (%s) of constraints for %s(%s)" % (
+-                len(constraint_names),
+-                model._meta.db_table,
+-                ", ".join(columns),
+-            ))
++            # If we cannot find exactly one constraint, we might be using a backend
++            # that doesn't support introspection of index uniqueness (e.g. MySQL < 8)
++            # or the index was somehow dropped manually. Fall back to the old logic.
++            # This preserves backward compatibility but might fail in the original
++            # reported case on some backends.
++            constraint_names = self._constraint_names(
++                model, columns, exclude=meta_constraint_names | meta_index_names,
++                **constraint_kwargs
++            )
++            if len(constraint_names) != 1:
++                raise ValueError("Found wrong number (%s) of constraints for %s(%s)" % (
++                    len(constraint_names),
++                    model._meta.db_table,
++                    ", ".join(columns),
++                ))
+         self.execute(self._delete_constraint_sql(sql, model, constraint_names[0]))
+ 
+     def alter_db_table(self, model, old_db_table, new_db_table):
+diff --git a/tests/migrations/test_operations.py b/tests/migrations/test_operations.py
+index 55c20213b0..8aa930c957 100644
+--- a/tests/migrations/test_operations.py
++++ b/tests/migrations/test_operations.py
+@@ -1683,6 +1683,83 @@ class OperationTests(OperationTestBase):
+         self.unapply_operations("test_rmin", project_state, operations=operations)
+         self.assertIndexExists("test_rmin_pony", ["pink", "weight"])
+ 
++
++    @skipUnlessDBFeature('supports_index_together')
++    def test_remove_index_together_with_unique_together(self):
++        """
++        Test RemoveIndex operation when index_together is removed but a
++        unique_together exists on the same fields.
++        """
++        # Initial state: model with both unique_together and index_together
++        project_state = self.apply_operations(
++            'test_rmidxuniq',
++            ProjectState(),
++            operations=[
++                migrations.CreateModel(
++                    'MyModel',
++                    fields=[
++                        ('id', models.AutoField(primary_key=True)),
++                        ('field1', models.IntegerField()),
++                        ('field2', models.CharField(max_length=10)),
++                    ],
++                    options={
++                        'unique_together': {('field1', 'field2')},
++                        'index_together': {('field1', 'field2')},
++                    },
++                ),
++            ],
++        )
++        self.assertTableExists('test_rmidxuniq_mymodel')
++        # Check both unique constraint and index exist (using introspection)
++        constraints = self.get_constraints('test_rmidxuniq_mymodel')
++        unique_constraints = {
++            name: details for name, details in constraints.items()
++            if details['unique'] and set(details['columns']) == {'field1', 'field2'}
++        }
++        index_constraints = {
++            name: details for name, details in constraints.items()
++            if details['index'] and not details['unique'] and set(details['columns']) == {'field1', 'field2'}
++        }
++        self.assertEqual(len(unique_constraints), 1, "Unique constraint not found")
++        self.assertEqual(len(index_constraints), 1, "Index constraint not found")
++
++        # Operation: Remove the index_together (simulated by RemoveIndex)
++        # The name='test_rmidxuniq_mymodel_field1_field2_idx' might be backend specific,
++        # but this pattern is common. We rely on the fixed _delete_composed_index
++        # to find the correct index regardless of the exact name.
++        # A more robust approach might involve finding the index name via introspection first.
++        index_name = list(index_constraints.keys())[0] # Get the actual index name
++        operation = migrations.RemoveIndex('MyModel', index_name)
++        self.assertEqual(operation.describe(), f'Remove index {index_name} from MyModel')
++
++        # Apply the operation
++        new_state = project_state.clone()
++        self.apply_operations('test_rmidxuniq', new_state, operations=[operation])
++
++        # Test the database alteration: index should be gone, unique constraint remains
++        self.assertTableExists('test_rmidxuniq_mymodel')
++        constraints_after = self.get_constraints('test_rmidxuniq_mymodel')
++        unique_constraints_after = {
++            name: details for name, details in constraints_after.items()
++            if details['unique'] and set(details['columns']) == {'field1', 'field2'}
++        }
++        index_constraints_after = {
++            name: details for name, details in constraints_after.items()
++            if details['index'] and not details['unique'] and set(details['columns']) == {'field1', 'field2'}
++        }
++        self.assertEqual(len(unique_constraints_after), 1, "Unique constraint was removed")
++        self.assertEqual(len(index_constraints_after), 0, "Index constraint was not removed")
++
++        # Test reversal
++        self.unapply_operations('test_rmidxuniq', project_state, operations=[operation])
++        self.assertTableExists('test_rmidxuniq_mymodel')
++        constraints_reverted = self.get_constraints('test_rmidxuniq_mymodel')
++        index_constraints_reverted = {
++            name: details for name, details in constraints_reverted.items()
++            if details['index'] and not details['unique'] and set(details['columns']) == {'field1', 'field2'}
++        }
++        self.assertEqual(len(index_constraints_reverted), 1, "Index constraint not restored on reversal")
++
+     def test_add_index_state_forwards(self):
+         project_state = self.set_up_test_model('test_adinsf')
+         index = models.Index(fields=['pink'], name='test_adinsf_pony_pink_idx')

@@ -12,12 +12,21 @@ import yaml
 from jinja2 import Template
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from simple_parsing.helpers.fields import field
-from swerex.exceptions import BashIncorrectSyntaxError, CommandTimeoutError, SwerexException
+from swerex.exceptions import (
+    BashIncorrectSyntaxError,
+    CommandTimeoutError,
+    SwerexException,
+)
 from tenacity import RetryError
 from typing_extensions import Self
 from unidiff import UnidiffParseError
 
-from sweagent import __version__, get_agent_commit_hash, get_rex_commit_hash, get_rex_version
+from sweagent import (
+    __version__,
+    get_agent_commit_hash,
+    get_rex_commit_hash,
+    get_rex_version,
+)
 from sweagent.agent.action_sampler import AbstractActionSampler, ActionSamplerConfig
 from sweagent.agent.history_processors import DefaultHistoryProcessor, HistoryProcessor
 from sweagent.agent.hooks.abstract import AbstractAgentHook, CombinedAgentHook
@@ -50,7 +59,13 @@ from sweagent.tools.parsing import (
     ThoughtActionParser,
 )
 from sweagent.tools.tools import ToolConfig, ToolHandler
-from sweagent.types import AgentInfo, AgentRunResult, StepOutput, Trajectory, TrajectoryStep
+from sweagent.types import (
+    AgentInfo,
+    AgentRunResult,
+    StepOutput,
+    Trajectory,
+    TrajectoryStep,
+)
 from sweagent.utils.config import _convert_paths_to_abspath, _strip_abspath_from_dict
 from sweagent.utils.jinja_warnings import _warn_probably_wrong_jinja_syntax
 from sweagent.utils.log import get_logger
@@ -118,7 +133,9 @@ class TemplateConfig(BaseModel):
 
     @model_validator(mode="after")
     def validate_template_jinja_syntax(self) -> Self:
-        template_fields = [field for field in self.model_fields.keys() if field.endswith("_template")]
+        template_fields = [
+            field for field in self.model_fields.keys() if field.endswith("_template")
+        ]
         for field in template_fields:
             value = getattr(self, field)
             _warn_probably_wrong_jinja_syntax(value)
@@ -128,7 +145,9 @@ class TemplateConfig(BaseModel):
     def warn_models_in_history(self) -> Self:
         if self.put_demos_in_history and self.demonstration_template is not None:
             logger = get_logger("swea-config", emoji="🔧")
-            logger.warning("demonstration_template is ignored when put_demos_in_history is True")
+            logger.warning(
+                "demonstration_template is ignored when put_demos_in_history is True"
+            )
         return self
 
 
@@ -138,7 +157,9 @@ class DefaultAgentConfig(BaseModel):
     name: str = "main"
     templates: TemplateConfig = Field(default_factory=TemplateConfig)
     tools: ToolConfig = Field(default_factory=ToolConfig)
-    history_processors: list[HistoryProcessor] = Field(default_factory=lambda: [DefaultHistoryProcessor()])
+    history_processors: list[HistoryProcessor] = Field(
+        default_factory=lambda: [DefaultHistoryProcessor()]
+    )
     model: ModelConfig = Field(description="Model options.")
 
     max_requeries: int = 3
@@ -148,6 +169,8 @@ class DefaultAgentConfig(BaseModel):
     action_sampler: ActionSamplerConfig | None = None
 
     type: Literal["default"] = "default"
+
+    max_steps: int | None = None
 
     # pydantic config
     model_config = ConfigDict(extra="forbid")
@@ -161,7 +184,9 @@ class RetryAgentConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
-AgentConfig = Annotated[DefaultAgentConfig | RetryAgentConfig, Field(union_mode="left_to_right")]
+AgentConfig = Annotated[
+    DefaultAgentConfig | RetryAgentConfig, Field(union_mode="left_to_right")
+]
 
 
 class _BlockedActionError(Exception):
@@ -181,6 +206,10 @@ class _ExitForfeit(Exception):
 
 
 class _TotalExecutionTimeExceeded(Exception):
+    """Used for internal control flow"""
+
+
+class _MaxStepsExceeded(Exception):
     """Used for internal control flow"""
 
 
@@ -251,7 +280,10 @@ class RetryAgent(AbstractAgent):
         self._hooks.append(hook)
 
     def setup(
-        self, env: SWEEnv, problem_statement: ProblemStatement | ProblemStatementConfig, output_dir: Path = Path(".")
+        self,
+        env: SWEEnv,
+        problem_statement: ProblemStatement | ProblemStatementConfig,
+        output_dir: Path = Path("."),
     ) -> None:
         """Setup the retry agent for a new problem instance.
         This is mostly a bookkeeping step.
@@ -261,15 +293,24 @@ class RetryAgent(AbstractAgent):
         self._traj_path = output_dir / (self._problem_statement.id + ".traj")
         self._env = env
         self._output_dir = output_dir
-        self._rloop = get_retry_loop_from_config(self.config.retry_loop, problem_statement=problem_statement)
+        self._rloop = get_retry_loop_from_config(
+            self.config.retry_loop, problem_statement=problem_statement
+        )
 
     def _setup_agent(self) -> AbstractAgent:
         """Setup the agent for the current attempt."""
         # todo: Could select "best" agent config based on previous attempts if I run > number of set up configs
-        agent_config = self.config.agent_configs[self._i_attempt % len(self.config.agent_configs)].model_copy(deep=True)
-        remaining_budget = self.config.retry_loop.cost_limit - self._total_instance_stats.instance_cost
+        agent_config = self.config.agent_configs[
+            self._i_attempt % len(self.config.agent_configs)
+        ].model_copy(deep=True)
+        remaining_budget = (
+            self.config.retry_loop.cost_limit - self._total_instance_stats.instance_cost
+        )
         if remaining_budget < agent_config.model.per_instance_cost_limit:
-            self.logger.debug("Setting agent per-attempt cost limit to remaining budget: %s", remaining_budget)
+            self.logger.debug(
+                "Setting agent per-attempt cost limit to remaining budget: %s",
+                remaining_budget,
+            )
             agent_config.model.per_instance_cost_limit = remaining_budget
         self._agent = DefaultAgent.from_config(agent_config)
         for hook in self._hooks:
@@ -278,7 +319,11 @@ class RetryAgent(AbstractAgent):
         sub_agent_output_dir = self._output_dir / f"attempt_{self._i_attempt}"
         assert self._problem_statement is not None
         assert self._env is not None
-        self._agent.setup(env=self._env, problem_statement=self._problem_statement, output_dir=sub_agent_output_dir)
+        self._agent.setup(
+            env=self._env,
+            problem_statement=self._problem_statement,
+            output_dir=sub_agent_output_dir,
+        )
         return self._agent
 
     def _next_attempt(self) -> None:
@@ -296,7 +341,11 @@ class RetryAgent(AbstractAgent):
         # Failsafe cost check, this should not actually happen, because the sub-agent should have already been
         # initialized with the correct cost limit to not exceed the total cost limit. Using factor of 1.1, because
         # sub-agent might only catch the cost limit after attempting.
-        if self._total_instance_stats.instance_cost > 1.1 * self.config.retry_loop.cost_limit > 0:
+        if (
+            self._total_instance_stats.instance_cost
+            > 1.1 * self.config.retry_loop.cost_limit
+            > 0
+        ):
             msg = "Total instance cost exceeded cost limit. This should not happen, please report this. Triggering autosubmit."
             self.logger.critical(msg)
             return self._agent.attempt_autosubmission_after_error(step=StepOutput())
@@ -332,16 +381,23 @@ class RetryAgent(AbstractAgent):
             except TotalCostLimitExceededError:
                 raise
             except Exception as e:
-                self.logger.critical(f"Error getting best attempt index: {e}. Setting to 0.", exc_info=True)
+                self.logger.critical(
+                    f"Error getting best attempt index: {e}. Setting to 0.",
+                    exc_info=True,
+                )
                 best_attempt_idx = 0
             data |= copy.deepcopy(self._attempt_data[best_attempt_idx])  # type: ignore
             data["info"]["best_attempt_idx"] = best_attempt_idx
-            data["info"]["rloop_model_stats"] = self._rloop.review_model_stats.model_dump()
+            data["info"]["rloop_model_stats"] = (
+                self._rloop.review_model_stats.model_dump()
+            )
             # Overwrite model stats with total stats
             data["info"]["model_stats"] = self._total_instance_stats.model_dump()
             if isinstance(self._rloop, ChooserRetryLoop):
                 data["info"]["chooser"] = (
-                    self._rloop._chooser_output.model_dump() if self._rloop._chooser_output else {}
+                    self._rloop._chooser_output.model_dump()
+                    if self._rloop._chooser_output
+                    else {}
                 )
         return data
 
@@ -393,7 +449,9 @@ class RetryAgent(AbstractAgent):
                     self._next_attempt()
                     step_output.done = False
         self.save_trajectory(choose=True)  # call again after we finalized
-        self._chook.on_run_done(trajectory=self._agent.trajectory, info=self._agent.info)
+        self._chook.on_run_done(
+            trajectory=self._agent.trajectory, info=self._agent.info
+        )
 
         self.logger.info("Trajectory saved to %s", self._traj_path)
 
@@ -416,6 +474,7 @@ class DefaultAgent(AbstractAgent):
         _catch_errors: bool = True,
         _always_require_zero_exit_code: bool = False,
         action_sampler_config: ActionSamplerConfig | None = None,
+        max_steps: int | None = None,
     ):
         """The agent handles the behaviour of the model and how it interacts with the environment.
 
@@ -426,6 +485,10 @@ class DefaultAgent(AbstractAgent):
         self.name = name
         self.model = model
         self.templates = templates
+        self._run_start_time = None
+        self._run_end_time = None
+        self.total_steps = 0
+        self.max_steps = max_steps
         self.tools = tools
         if isinstance(self.model, HumanThoughtModel):
             self.tools.config.parse_function = ThoughtActionParser()
@@ -474,6 +537,7 @@ class DefaultAgent(AbstractAgent):
             model=model,
             max_requeries=config.max_requeries,
             action_sampler_config=config.action_sampler,
+            max_steps=config.max_steps,
         )
 
     def add_hook(self, hook: AbstractAgentHook) -> None:
@@ -497,14 +561,18 @@ class DefaultAgent(AbstractAgent):
         # Do import here to avoid circular dependency
         from sweagent.run.run_single import RunSingleConfig
 
-        self._replay_config = RunSingleConfig.model_validate(_strip_abspath_from_dict(value.model_dump()))
+        self._replay_config = RunSingleConfig.model_validate(
+            _strip_abspath_from_dict(value.model_dump())
+        )
 
     @property
     def messages(self) -> list[dict[str, Any]]:
         """Return the history of the agent for this attempt since the last reset,
         processed through all history processors.
         """
-        filtered_history = [entry for entry in self.history if entry["agent"] == self.name]  # type: ignore
+        filtered_history = [
+            entry for entry in self.history if entry["agent"] == self.name
+        ]  # type: ignore
 
         # Chain the history processors
         messages = filtered_history
@@ -552,7 +620,9 @@ class DefaultAgent(AbstractAgent):
         self.info["swe_rex_hash"] = get_rex_commit_hash()
         assert self._env is not None
         assert self._problem_statement is not None
-        self._env.set_env_variables({"PROBLEM_STATEMENT": self._problem_statement.get_problem_statement()})
+        self._env.set_env_variables(
+            {"PROBLEM_STATEMENT": self._problem_statement.get_problem_statement()}
+        )
         self.add_system_message_to_history()
         self.add_demonstrations_to_history()
         self.add_instance_template_to_history(state=self.tools.get_state(self._env))
@@ -561,10 +631,17 @@ class DefaultAgent(AbstractAgent):
     def add_system_message_to_history(self) -> None:
         """Add system message to history"""
         assert self._problem_statement is not None
-        system_msg = Template(self.templates.system_template).render(**self._get_format_dict())
+        system_msg = Template(self.templates.system_template).render(
+            **self._get_format_dict()
+        )
         self.logger.info(f"SYSTEM ({self.name})\n{system_msg}")
         self._append_history(
-            {"role": "system", "content": system_msg, "agent": self.name, "message_type": "system_prompt"}
+            {
+                "role": "system",
+                "content": system_msg,
+                "agent": self.name,
+                "message_type": "system_prompt",
+            }
         )
 
     def add_demonstrations_to_history(self) -> None:
@@ -574,7 +651,10 @@ class DefaultAgent(AbstractAgent):
 
     def _add_demonstration_to_history(self, demonstration_path: Path) -> None:
         """Load demonstration from disk and add to history"""
-        if self.templates.demonstration_template is None and not self.templates.put_demos_in_history:
+        if (
+            self.templates.demonstration_template is None
+            and not self.templates.put_demos_in_history
+        ):
             msg = "Cannot use demonstrations without a demonstration template or put_demos_in_history=True"
             raise ValueError(msg)
 
@@ -594,10 +674,14 @@ class DefaultAgent(AbstractAgent):
                     self._append_history(entry)
         else:
             # Add demonstration as single message to history
-            demo_history = [entry for entry in demo_history if entry["role"] != "system"]
+            demo_history = [
+                entry for entry in demo_history if entry["role"] != "system"
+            ]
             demo_message = "\n".join([entry["content"] for entry in demo_history])
             assert self.templates.demonstration_template is not None
-            demonstration = Template(self.templates.demonstration_template).render(demonstration=demo_message)
+            demonstration = Template(self.templates.demonstration_template).render(
+                demonstration=demo_message
+            )
             self._append_history(
                 {
                     "agent": self.name,
@@ -626,7 +710,10 @@ class DefaultAgent(AbstractAgent):
         )
 
     def _add_templated_messages_to_history(
-        self, templates: list[str], tool_call_ids: list[str] | None = None, **kwargs: str | int | None
+        self,
+        templates: list[str],
+        tool_call_ids: list[str] | None = None,
+        **kwargs: str | int | None,
     ) -> None:
         """Populate selected template(s) with information (e.g., issue, arguments, state)
         and add to history.
@@ -644,7 +731,9 @@ class DefaultAgent(AbstractAgent):
             try:
                 messages.append(Template(template).render(**format_dict))
             except KeyError:
-                self.logger.debug("The following keys are available: %s", format_dict.keys())
+                self.logger.debug(
+                    "The following keys are available: %s", format_dict.keys()
+                )
                 raise
 
         message = "\n".join(messages)
@@ -659,7 +748,9 @@ class DefaultAgent(AbstractAgent):
             "message_type": "observation",
         }
         if tool_call_ids:
-            assert len(tool_call_ids) == 1, "This should be ensured by the FunctionCalling parse method"
+            assert len(tool_call_ids) == 1, (
+                "This should be ensured by the FunctionCalling parse method"
+            )
             history_item["role"] = "tool"
             history_item["tool_call_ids"] = tool_call_ids
         self._append_history(history_item)
@@ -704,7 +795,9 @@ class DefaultAgent(AbstractAgent):
         """
         templates: list[str] = []
         # Determine observation template based on what prior observation was
-        assert self.history[-1]["role"] == "system" or self.history[-1].get("is_demo", False)
+        assert self.history[-1]["role"] == "system" or self.history[-1].get(
+            "is_demo", False
+        )
         # Show instance template if prev. obs. was initial system message
         templates = [self.templates.instance_template]
         if self.templates.strategy_template is not None:
@@ -725,7 +818,11 @@ class DefaultAgent(AbstractAgent):
                 "info": self.info,
             }
         )
-        attempt_data["replay_config"] = self.replay_config.model_dump_json() if self.replay_config is not None else None
+        attempt_data["replay_config"] = (
+            self.replay_config.model_dump_json()
+            if self.replay_config is not None
+            else None
+        )
         attempt_data["environment"] = self._env.name
         return attempt_data
 
@@ -736,11 +833,27 @@ class DefaultAgent(AbstractAgent):
         This includes the history, the environment state, and the model stats.
         """
         data = self.get_trajectory_data()
+
+        stats = copy.deepcopy(self.info["model_stats"])
+        stats["run_time"] = self._run_end_time - self._run_start_time
+        stats["total_steps"] = self.total_steps
+
         assert self.traj_path is not None
+
+        stats_path = self.traj_path.parent / "stats.json"
+        stats_path.parent.mkdir(parents=True, exist_ok=True)
+        stats_path.write_text(json.dumps(stats, indent=2))
+
+        self.logger.info(f"Saved stats to {stats_path}")
+
         self.traj_path.write_text(json.dumps(data, indent=2))
 
     def get_model_requery_history(
-        self, error_template: str, *, output: str, **kwargs: str | int | float | bool | None
+        self,
+        error_template: str,
+        *,
+        output: str,
+        **kwargs: str | int | float | bool | None,
     ) -> list[dict[str, str]]:
         """Ask the model to correct after a hitting one of the following errors:
 
@@ -791,13 +904,17 @@ class DefaultAgent(AbstractAgent):
                 self.logger.info("No last trajectory step to extract patch from")
                 return step
             if "diff" not in last_trajectory_step["state"]:
-                self.logger.info("No diff in last trajectory step state, cannot autosubmit")
+                self.logger.info(
+                    "No diff in last trajectory step state, cannot autosubmit"
+                )
                 return step
             diff = last_trajectory_step["state"]["diff"]
             self.logger.info("Using diff from last trajectory step to autosubmit")
             step.submission = diff
             if step.submission:
-                step.observation = "Environment died unexpectedly. Exited (autosubmitted)"
+                step.observation = (
+                    "Environment died unexpectedly. Exited (autosubmitted)"
+                )
                 step.exit_status = f"submitted ({step.exit_status})"
             else:
                 self.logger.info("Diff from last traj step empty.")
@@ -807,7 +924,9 @@ class DefaultAgent(AbstractAgent):
         if self._env.repo is not None:
             repo_name = f"/{self._env.repo.repo_name}"
         submission_command = "git add -A && git diff --cached > /root/model.patch"
-        self.logger.info("Executing submission command %s in %s", submission_command, repo_name)
+        self.logger.info(
+            "Executing submission command %s in %s", submission_command, repo_name
+        )
         try:
             self._env.execute_command(submission_command, check=True, cwd=repo_name)
         except Exception as e:
@@ -820,7 +939,9 @@ class DefaultAgent(AbstractAgent):
             step.observation = "Exited (autosubmitted)"
         return step
 
-    def handle_submission(self, step: StepOutput, *, observation="", force_submission: bool = False) -> StepOutput:
+    def handle_submission(
+        self, step: StepOutput, *, observation="", force_submission: bool = False
+    ) -> StepOutput:
         """Check if there was a submission in the observation and handle it.
 
         Args:
@@ -833,11 +954,15 @@ class DefaultAgent(AbstractAgent):
         """
         step = step.model_copy(deep=True)
         assert self.tools is not None
-        is_submission = self.tools.check_for_submission_cmd(observation or step.observation)
+        is_submission = self.tools.check_for_submission_cmd(
+            observation or step.observation
+        )
         if is_submission or force_submission:
             assert self._env is not None
             try:
-                submission = self._env.read_file("/root/model.patch", encoding="utf-8", errors="backslashreplace")
+                submission = self._env.read_file(
+                    "/root/model.patch", encoding="utf-8", errors="backslashreplace"
+                )
             except FileNotFoundError:
                 self.logger.warning("Submission file not found, no submission was made")
                 return step
@@ -875,7 +1000,9 @@ class DefaultAgent(AbstractAgent):
                     else None
                 )
         except UnidiffParseError:
-            self.logger.error("Failed to parse patch with unidiff. Some variables will be empty.")
+            self.logger.error(
+                "Failed to parse patch with unidiff. Some variables will be empty."
+            )
             pf = None
             # We still need to populate the variables
         out = {}
@@ -920,16 +1047,25 @@ class DefaultAgent(AbstractAgent):
             )
         except CommandTimeoutError:
             try:
-                if self._n_consecutive_timeouts >= self.tools.config.max_consecutive_execution_timeouts:
+                if (
+                    self._n_consecutive_timeouts
+                    >= self.tools.config.max_consecutive_execution_timeouts
+                ):
                     msg = "Exiting agent due to too many consecutive execution timeouts"
                     self.logger.critical(msg)
                     raise
                 self._env.interrupt_session()
                 self._n_consecutive_timeouts += 1
             except Exception as f:
-                self.logger.exception("Failed to interrupt session after command timeout: %s", f, exc_info=True)
+                self.logger.exception(
+                    "Failed to interrupt session after command timeout: %s",
+                    f,
+                    exc_info=True,
+                )
                 raise
-            step.observation = Template(self.templates.command_cancelled_timeout_template).render(
+            step.observation = Template(
+                self.templates.command_cancelled_timeout_template
+            ).render(
                 **self._get_format_dict(),
                 timeout=self.tools.config.execution_timeout,
                 command=run_action,
@@ -994,7 +1130,9 @@ class DefaultAgent(AbstractAgent):
             if output.get("tool_calls") is not None:
                 step.tool_call_ids = [call["id"] for call in output["tool_calls"]]
                 step.tool_calls = output["tool_calls"]
-            self.logger.info(f"💭 THOUGHT\n{step.thought}\n\n🎬 ACTION\n{step.action.strip()}")
+            self.logger.info(
+                f"💭 THOUGHT\n{step.thought}\n\n🎬 ACTION\n{step.action.strip()}"
+            )
             self._chook.on_actions_generated(step=step)
             return self.handle_action(step)
         except Exception as e:
@@ -1020,7 +1158,9 @@ class DefaultAgent(AbstractAgent):
             step_output: step output
         """
 
-        def handle_error_with_autosubmission(exit_status: str, message: str) -> StepOutput:
+        def handle_error_with_autosubmission(
+            exit_status: str, message: str
+        ) -> StepOutput:
             """Attempts to autosubmit (extract patch from the environment) and stops the loop."""
             self.logger.warning(message)
             return self.attempt_autosubmission_after_error(
@@ -1032,9 +1172,15 @@ class DefaultAgent(AbstractAgent):
                 )
             )
 
-        def handle_error_with_retry(exception: Exception, template: str, n_requeries: int) -> list[dict[str, str]]:
+        def handle_error_with_retry(
+            exception: Exception, template: str, n_requeries: int
+        ) -> list[dict[str, str]]:
             """Requeries the model if the error is a format/blocklist/bash syntax error."""
-            self.logger.warning("Requerying model after %s (%dth requery)", type(exception).__name__, n_requeries)
+            self.logger.warning(
+                "Requerying model after %s (%dth requery)",
+                type(exception).__name__,
+                n_requeries,
+            )
             step: StepOutput = getattr(exception, "step", StepOutput())
             self.add_step_to_trajectory(step)
             exception_message = getattr(exception, "message", "")
@@ -1053,6 +1199,12 @@ class DefaultAgent(AbstractAgent):
         n_format_fails = 0
         while n_format_fails < self.max_requeries:
             try:
+                if (
+                    self.max_steps is not None
+                    and len(self.trajectory) + 1 > self.max_steps
+                ):
+                    raise _MaxStepsExceeded()
+
                 return self.forward(history)
 
             # Errors that are raised
@@ -1065,12 +1217,16 @@ class DefaultAgent(AbstractAgent):
             except FormatError as e:
                 n_format_fails += 1
                 history = handle_error_with_retry(
-                    exception=e, template=self.tools.config.format_error_template, n_requeries=n_format_fails
+                    exception=e,
+                    template=self.tools.config.format_error_template,
+                    n_requeries=n_format_fails,
                 )
             except _BlockedActionError as e:
                 n_format_fails += 1
                 history = handle_error_with_retry(
-                    exception=e, template=self.tools.config.filter.blocklist_error_template, n_requeries=n_format_fails
+                    exception=e,
+                    template=self.tools.config.filter.blocklist_error_template,
+                    n_requeries=n_format_fails,
                 )
             except ContentPolicyViolationError:
                 self.logger.warning("Content policy violation, trying to resample")
@@ -1096,6 +1252,13 @@ class DefaultAgent(AbstractAgent):
 
             # Errors that cause exit
 
+            except _MaxStepsExceeded:
+                self.logger.info("Exiting due to max steps")
+                return handle_error_with_autosubmission(
+                    "exit_max_steps",
+                    "Exit due to max steps",
+                )
+
             except _ExitForfeit:
                 self.logger.info("Exiting due to forfeit")
                 return handle_error_with_autosubmission(
@@ -1104,14 +1267,19 @@ class DefaultAgent(AbstractAgent):
                 )
 
             except _TotalExecutionTimeExceeded:
-                self.logger.exception("Exiting due to total execution time exceeded", exc_info=True)
+                self.logger.exception(
+                    "Exiting due to total execution time exceeded", exc_info=True
+                )
                 return handle_error_with_autosubmission(
                     "exit_total_execution_time",
                     "Exit due to total execution time exceeded",
                 )
 
             except CommandTimeoutError:
-                self.logger.exception("Exiting due to multiple consecutive command timeouts", exc_info=True)
+                self.logger.exception(
+                    "Exiting due to multiple consecutive command timeouts",
+                    exc_info=True,
+                )
                 return handle_error_with_autosubmission(
                     "exit_command_timeout",
                     "Exit due to multiple consecutive command timeouts",
@@ -1136,27 +1304,30 @@ class DefaultAgent(AbstractAgent):
                     f"Exit due to retry error: {e}",
                 )
             except SwerexException as e:
-                self.logger.exception(f"Exiting due to environment error: {e}", exc_info=True)
+                self.logger.exception(
+                    f"Exiting due to environment error: {e}", exc_info=True
+                )
                 return handle_error_with_autosubmission(
                     "exit_environment_error",
                     f"Exit due to environment error: {e}",
                 )
             except RuntimeError as e:
-                self.logger.exception(f"Exiting due to runtime error: {e}", exc_info=True)
+                self.logger.exception(
+                    f"Exiting due to runtime error: {e}", exc_info=True
+                )
                 return handle_error_with_autosubmission(
                     "exit_error",
                     f"Exit due to runtime error: {e}",
                 )
             except Exception as e:
-                self.logger.exception(f"Exiting due to unknown error: {e}", exc_info=True)
+                self.logger.exception(
+                    f"Exiting due to unknown error: {e}", exc_info=True
+                )
                 return handle_error_with_autosubmission(
                     "exit_error",
                     f"Exit due to unknown error: {e}",
                 )
-        self.logger.exception(
-            "Exit due to repeated format/blocklist/bash syntax errors",
-            exc_info=True,
-        )
+
         return handle_error_with_autosubmission(
             "exit_format",
             "Exit due to repeated format/blocklist/bash syntax errors",
@@ -1194,17 +1365,21 @@ class DefaultAgent(AbstractAgent):
 
         n_step = len(self.trajectory) + 1
         self.logger.info("=" * 25 + f" STEP {n_step} " + "=" * 25)
+
         step_output = self.forward_with_handling(self.messages)
         self.add_step_to_history(step_output)
 
         self.info["submission"] = step_output.submission
         self.info["exit_status"] = step_output.exit_status  # type: ignore
-        self.info.update(self._get_edited_files_with_context(patch=step_output.submission or ""))  # type: ignore
+        self.info.update(
+            self._get_edited_files_with_context(patch=step_output.submission or "")
+        )  # type: ignore
         self.info["model_stats"] = self.model.stats.model_dump()
 
         self.add_step_to_trajectory(step_output)
 
         self._chook.on_step_done(step=step_output, info=self.info)
+        self.total_steps = n_step
         return step_output
 
     def run(
@@ -1225,9 +1400,11 @@ class DefaultAgent(AbstractAgent):
 
         # Run action/observation loop
         self._chook.on_run_start()
+        self._run_start_time = time.perf_counter()
         step_output = StepOutput()
         while not step_output.done:
             step_output = self.step()
+            self._run_end_time = time.perf_counter()
             self.save_trajectory()
         self._chook.on_run_done(trajectory=self.trajectory, info=self.info)
 

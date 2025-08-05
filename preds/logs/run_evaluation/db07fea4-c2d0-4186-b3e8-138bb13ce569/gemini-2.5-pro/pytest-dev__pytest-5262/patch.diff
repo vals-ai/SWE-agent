@@ -1,0 +1,45 @@
+diff --git a/src/_pytest/capture.py b/src/_pytest/capture.py
+index 25eab7fdf..9dc07874b 100644
+--- a/src/_pytest/capture.py
++++ b/src/_pytest/capture.py
+@@ -428,6 +428,9 @@ class EncodedFile(object):
+     def __init__(self, buffer, encoding):
+         self.buffer = buffer
+         self.encoding = encoding
++    @property
++    def mode(self):
++        return self.buffer.mode.replace("b", "")
+ 
+     def write(self, obj):
+         if isinstance(obj, six.text_type):
+diff --git a/test.py b/test.py
+new file mode 100644
+index 000000000..dcc636bf2
+--- /dev/null
++++ b/test.py
+@@ -0,0 +1,4 @@
++
++import youtube_dl
++def test_foo():
++    youtube_dl.YoutubeDL().extract_info('http://example.com/')
+\ No newline at end of file
+diff --git a/testing/test_capture.py b/testing/test_capture.py
+index 5d80eb63d..d64e3aca9 100644
+--- a/testing/test_capture.py
++++ b/testing/test_capture.py
+@@ -1552,7 +1552,6 @@ def test_capture_with_live_logging(testdir, capture_fixture):
+     result = testdir.runpytest_subprocess("--log-cli-level=INFO")
+     assert result.ret == 0
+ 
+-
+ def test_typeerror_encodedfile_write(testdir):
+     """It should behave the same with and without output capturing (#4861)."""
+     p = testdir.makepyfile(
+@@ -1572,5 +1571,7 @@ def test_typeerror_encodedfile_write(testdir):
+         result_with_capture.stdout.fnmatch_lines(
+             ["E           TypeError: write() argument must be str, not bytes"]
+         )
++        pass
+     else:
++        pass
+         assert result_with_capture.ret == 0

@@ -1,0 +1,55 @@
+diff --git a/django/db/models/sql/datastructures.py b/django/db/models/sql/datastructures.py
+index 1edf040e82..e2a9fc92be 100644
+--- a/django/db/models/sql/datastructures.py
++++ b/django/db/models/sql/datastructures.py
+@@ -162,8 +162,8 @@ class Join:
+         return hash(self.identity)
+ 
+     def equals(self, other):
+-        # Ignore filtered_relation in equality check.
+-        return self.identity[:-1] == other.identity[:-1]
++        # Include filtered_relation in equality check to ensure distinct joins for different conditions.
++        return self.identity == other.identity
+ 
+     def demote(self):
+         new = self.relabeled_clone({})
+diff --git a/reproduce_filtered_relation.py b/reproduce_filtered_relation.py
+new file mode 100644
+index 0000000000..98c0b24404
+--- /dev/null
++++ b/reproduce_filtered_relation.py
+@@ -0,0 +1,33 @@
++
++from django.db.models import FilteredRelation, Q, F, Case, When
++
++# Assuming a queryset 'qs' is defined, this is a placeholder for the actual queryset
++# In a real environment, you would have a proper Django setup with models
++
++# Simulating the queryset annotation as described in the issue
++qs = None  # Placeholder for actual queryset
++
++qs = qs.alias(
++    relation_zone=FilteredRelation(
++        "myrelation__nested",
++        condition=Q(myrelation__nested__zone=F("zone"))
++    ),
++    relation_all=FilteredRelation(
++        "myrelation__nested",
++        condition=Q(myrelation__nested__is_all=True)
++    ),
++    price_zone=F("relation_zone__price")
++).annotate(
++    price_final=Case(
++        When(
++            price_zone__isnull=True,
++            then=F("relation_all__price"),
++        ),
++        default=F("price_zone")
++    )
++)
++
++# Print the SQL query to inspect the generated JOINs
++print(str(qs.query) if qs else 'Placeholder for query output')
++
++print('Script completed successfully, no errors.')
+\ No newline at end of file

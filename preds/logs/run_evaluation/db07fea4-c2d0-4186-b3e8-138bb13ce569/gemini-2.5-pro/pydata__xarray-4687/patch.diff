@@ -1,0 +1,70 @@
+diff --git a/xarray/core/computation.py b/xarray/core/computation.py
+index 9fe93c88..93b8e95e 100644
+--- a/xarray/core/computation.py
++++ b/xarray/core/computation.py
+@@ -1809,7 +1809,7 @@ def where(cond, x, y):
+         equivalent methods
+     """
+     # alignment for three arguments is complicated, so don't support it yet
+-    return apply_ufunc(
++    result = apply_ufunc(
+         duck_array_ops.where,
+         cond,
+         x,
+@@ -1817,8 +1817,23 @@ def where(cond, x, y):
+         join="exact",
+         dataset_join="exact",
+         dask="allowed",
++        keep_attrs=False,  # Don't use apply_ufunc's merging for now
+     )
+ 
++    # Manually handle attributes
++    from .dataarray import DataArray  # Avoid circular import at top level
++
++    attrs = None
++    if isinstance(x, DataArray):
++        attrs = x.attrs
++    elif isinstance(y, DataArray):
++        attrs = y.attrs
++
++    if attrs is not None:
++        result.attrs = attrs
++
++    return result
++
+ 
+ def polyval(coord, coeffs, degree_dim="degree"):
+     """Evaluate a polynomial at specific values
+diff --git a/xarray/tests/test_computation.py b/xarray/tests/test_computation.py
+index c9a10b7c..3e10e3a1 100644
+--- a/xarray/tests/test_computation.py
++++ b/xarray/tests/test_computation.py
+@@ -1919,7 +1919,27 @@ def test_where() -> None:
+     cond = xr.DataArray([True, False], dims="x")
+     actual = xr.where(cond, 1, 0)
+     expected = xr.DataArray([1, 0], dims="x")
+-    assert_identical(expected, actual)
++
++    # Test attribute preservation
++    da = xr.DataArray([1, 2], dims="x", attrs={"foo": "bar"})
++    cond = da > 1
++    # Case 1: xr.where(cond, scalar, DataArray)
++    actual1 = xr.where(cond, 0, da)
++    expected1 = xr.DataArray([1, 0], dims="x", coords=da.coords, attrs=da.attrs)
++    assert_identical(expected1, actual1) # Check data
++    assert actual1.attrs == {"foo": "bar"}       # Check attrs
++
++    # Case 2: xr.where(cond, DataArray, scalar)
++    actual2 = xr.where(cond, da, 0)
++    expected2 = xr.DataArray([0, 2], dims="x", coords=da.coords, attrs=da.attrs)
++    assert_identical(expected2, actual2) # Check data
++    assert actual2.attrs == {"foo": "bar"}          # Check attrs
++
++    # Case 3: xr.where(cond, scalar, scalar) - attrs should be empty
++    actual3 = xr.where(cond, 1, 0)
++    expected3 = xr.DataArray([0, 1], dims="x") # Expected data
++    assert_identical(expected3, actual3)       # Check data
++    assert actual3.attrs == {}                 # Check attrs (should be empty)
+ 
+ 
+ @pytest.mark.parametrize("use_dask", [True, False])

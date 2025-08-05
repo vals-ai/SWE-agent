@@ -1,0 +1,64 @@
+diff --git a/additional_tests.py b/additional_tests.py
+new file mode 100644
+index 0000000000..45be90326a
+--- /dev/null
++++ b/additional_tests.py
+@@ -0,0 +1,27 @@
++
++import astropy.units as u
++
++x = u.Unit('asdf', parse_strict='silent')
++
++# Test comparison with None
++print('Comparing with None:', x == None)
++
++# Test comparison with integer
++try:
++    result = x == 5
++    print('Comparing with integer:', result)
++except Exception as e:
++    print('Error comparing with integer:', str(e))
++
++# Test comparison with string
++try:
++    result = x == 'another_unit'
++    print('Comparing with string:', result)
++except Exception as e:
++    print('Error comparing with string:', str(e))
++
++# Test comparison with another UnrecognizedUnit
++y = u.Unit('qwer', parse_strict='silent')
++print('Comparing with another unrecognized unit:', x == y)
++
++print('Tests completed.')
+\ No newline at end of file
+diff --git a/astropy/units/core.py b/astropy/units/core.py
+index e9bd986d33..1b202395e9 100644
+--- a/astropy/units/core.py
++++ b/astropy/units/core.py
+@@ -1710,6 +1710,8 @@ class UnrecognizedUnit(IrreducibleUnit):
+         _unrecognized_operator
+ 
+     def __eq__(self, other):
++        if other is None:
++            return False
+         other = Unit(other, parse_strict='silent')
+         return isinstance(other, UnrecognizedUnit) and self.name == other.name
+ 
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..e49ec6dfc4
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,10 @@
++
++import astropy.units as u
++
++x = u.Unit('asdf', parse_strict='silent')
++
++try:
++    result = x == None
++    print('Comparison result:', result)
++except TypeError as e:
++    print('TypeError occurred:', str(e))
+\ No newline at end of file

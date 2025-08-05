@@ -1,0 +1,56 @@
+diff --git a/django/db/migrations/autodetector.py b/django/db/migrations/autodetector.py
+index 30616c0172..30a70236f6 100644
+--- a/django/db/migrations/autodetector.py
++++ b/django/db/migrations/autodetector.py
+@@ -165,6 +165,7 @@ class MigrationAutodetector:
+ 
+         # Generate non-rename model operations
+         self.generate_deleted_models()
++        self.generate_removed_fields()
+         self.generate_created_models()
+         self.generate_deleted_proxies()
+         self.generate_created_proxies()
+@@ -181,7 +182,6 @@ class MigrationAutodetector:
+         self.generate_removed_indexes()
+         # Generate field operations
+         self.generate_renamed_fields()
+-        self.generate_removed_fields()
+         self.generate_added_fields()
+         self.generate_altered_fields()
+         self.generate_altered_unique_together()
+diff --git a/tests/migrations/test_autodetector.py b/tests/migrations/test_autodetector.py
+index daff57fc2c..07c6f71668 100644
+--- a/tests/migrations/test_autodetector.py
++++ b/tests/migrations/test_autodetector.py
+@@ -2453,4 +2453,31 @@ class AutodetectorTests(TestCase):
+         changes = self.get_changes([Animal, Dog], [Animal])
+         self.assertNumberMigrations(changes, 'app', 1)
+         self.assertOperationTypes(changes, 'app', 0, ['DeleteModel'])
++
++    def test_field_migration_in_inheritance(self):
++        """
++        Tests that moving a field from a base class to a subclass orders operations correctly.
++        See ticket #21890 and related issues.
++        """
++        # Initial state: Base model Readable with title field
++        Readable = ModelState('app', 'Readable', [
++            ('id', models.AutoField(primary_key=True)),
++            ('title', models.CharField(max_length=200)),
++        ])
++        # New state: Readable empty, Book inherits from Readable and has title
++        ReadableEmpty = ModelState('app', 'Readable', [
++            ('id', models.AutoField(primary_key=True)),
++        ])
++        Book = ModelState('app', 'Book', [
++            ('id', models.AutoField(primary_key=True)),
++            ('title', models.CharField(max_length=200)),
++        ], bases=('app.Readable',))
++        changes = self.get_changes([Readable], [ReadableEmpty, Book])
++        # Check number and type of migrations
++        self.assertNumberMigrations(changes, 'app', 1)
++        # We expect CreateModel for Book and RemoveField for Readable.title
++        # The order should prevent FieldError, ideally RemoveField before AddField in CreateModel
++        self.assertOperationTypes(changes, 'app', 0, ['RemoveField', 'CreateModel'])
++        self.assertOperationAttributes(changes, 'app', 0, 0, name='Readable', field='title')
++        self.assertOperationAttributes(changes, 'app', 0, 1, name='Book')
+         self.assertOperationAttributes(changes, 'app', 0, 0, name='Dog')

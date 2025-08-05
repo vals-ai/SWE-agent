@@ -1,0 +1,56 @@
+diff --git a/tests/model_inheritance/models.py b/tests/model_inheritance/models.py
+index a4f9cfe696..16ee54985a 100644
+--- a/tests/model_inheritance/models.py
++++ b/tests/model_inheritance/models.py
+@@ -194,3 +194,17 @@ class Child(Parent):
+ 
+ class GrandChild(Child):
+     pass
++
++
++class Item(models.Model):
++    # uid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
++    uid = models.AutoField(primary_key=True, editable=False)
++    f = models.BooleanField(default=False)
++
++    def reset(self):
++        self.uid = None
++        self.f = False
++
++
++class Derived(Item):
++    pass
+\ No newline at end of file
+diff --git a/tests/model_inheritance/tests.py b/tests/model_inheritance/tests.py
+index 5eef0f5bfa..d4c31fdf79 100644
+--- a/tests/model_inheritance/tests.py
++++ b/tests/model_inheritance/tests.py
+@@ -522,3 +522,27 @@ class InheritanceUniqueTests(TestCase):
+         msg = 'Grand parent with this First name and Last name already exists.'
+         with self.assertRaisesMessage(ValidationError, msg):
+             grand_child.validate_unique()
++
++
++from django.test import TestCase
++from .models import Item, Derived
++
++class ResetPrimaryKeyTests(TestCase):
++    def test_reset_pk_child(self):
++        derived = Derived.objects.create(f=True) # create the first object
++        item = Item.objects.get(pk=derived.pk)
++        obj1 = item.derived
++        original_pk = obj1.pk
++        obj1.reset()
++        obj1.save(force_insert=True) # Force insert explicitly
++
++        # Check that the original object still exists with f=True
++        self.assertTrue(Item.objects.filter(pk=original_pk, f=True).exists())
++
++        # Check that a new object was created with f=False
++        self.assertTrue(Item.objects.filter(pk=obj1.pk, f=False).exists())
++        self.assertNotEqual(original_pk, obj1.pk)
++
++        # Verify counts
++        self.assertEqual(Item.objects.count(), 2)
++        self.assertEqual(Derived.objects.count(), 2)
+\ No newline at end of file

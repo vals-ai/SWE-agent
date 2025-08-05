@@ -1,0 +1,47 @@
+diff --git a/django/template/defaultfilters.py b/django/template/defaultfilters.py
+index 23c3a08c67..2d9351904f 100644
+--- a/django/template/defaultfilters.py
++++ b/django/template/defaultfilters.py
+@@ -162,6 +162,15 @@ def floatformat(text, arg=-1):
+         p = int(arg)
+     except ValueError:
+         return input_val
++    if p == 0:
++        return mark_safe(
++            formats.number_format(
++                "%d" % (int(d)),
++                0,
++                use_l10n=use_l10n,
++                force_grouping=force_grouping,
++            )
++        )
+ 
+     try:
+         m = int(d) - d
+diff --git a/reproduce_floatformat_bug.py b/reproduce_floatformat_bug.py
+new file mode 100644
+index 0000000000..44946ab9c5
+--- /dev/null
++++ b/reproduce_floatformat_bug.py
+@@ -0,0 +1,20 @@
++
++from decimal import Decimal
++from django.template.defaultfilters import floatformat
++# Note: This test may fail due to missing Django settings configuration.
++# In a proper Django environment, the fix should prevent ValueError for precision 0.
++print('Running test for floatformat bug...')
++
++# Test with string input
++try:
++    result = floatformat('0.00', 0)
++    print('String input result:', result)
++except ValueError as e:
++    print('String input error:', str(e))
++
++# Test with Decimal input
++try:
++    result = floatformat(Decimal('0.00'), 0)
++    print('Decimal input result:', result)
++except ValueError as e:
++    print('Decimal input error:', str(e))
+\ No newline at end of file

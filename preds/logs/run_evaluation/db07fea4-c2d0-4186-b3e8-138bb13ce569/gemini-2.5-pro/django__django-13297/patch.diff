@@ -1,0 +1,106 @@
+diff --git a/django/db/backends/utils.py b/django/db/backends/utils.py
+index 45c03ba3e9..a020e30f8a 100644
+--- a/django/db/backends/utils.py
++++ b/django/db/backends/utils.py
+@@ -2,6 +2,7 @@ import datetime
+ import decimal
+ import functools
+ import hashlib
++from django.utils.functional import SimpleLazyObject
+ import logging
+ import time
+ from contextlib import contextmanager
+@@ -81,12 +82,25 @@ class CursorWrapper:
+                 # params default might be backend specific.
+                 return self.cursor.execute(sql)
+             else:
+-                return self.cursor.execute(sql, params)
++                # Resolve SimpleLazyObject instances.
++                if isinstance(params, dict):
++                    resolved_params = {k: str(v) if isinstance(v, SimpleLazyObject) else v for k, v in params.items()}
++                else:  # Assume tuple/list
++                    resolved_params = tuple(str(p) if isinstance(p, SimpleLazyObject) else p for p in params)
++                return self.cursor.execute(sql, resolved_params)
+ 
+     def _executemany(self, sql, param_list, *ignored_wrapper_args):
+         self.db.validate_no_broken_transaction()
+         with self.db.wrap_database_errors:
+-            return self.cursor.executemany(sql, param_list)
++            # Resolve SimpleLazyObject instances in param_list
++            resolved_param_list = []
++            for params in param_list:
++                if isinstance(params, dict):
++                    resolved_params = {k: str(v) if isinstance(v, SimpleLazyObject) else v for k, v in params.items()}
++                else: # Assume tuple/list
++                    resolved_params = tuple(str(p) if isinstance(p, SimpleLazyObject) else p for p in params)
++                resolved_param_list.append(resolved_params)
++            return self.cursor.executemany(sql, resolved_param_list)
+ 
+ 
+ class CursorDebugWrapper(CursorWrapper):
+diff --git a/tests/generic_views/test_base.py b/tests/generic_views/test_base.py
+index d498d23a68..b83fe9fcb9 100644
+--- a/tests/generic_views/test_base.py
++++ b/tests/generic_views/test_base.py
+@@ -3,11 +3,15 @@ import time
+ from django.core.exceptions import ImproperlyConfigured
+ from django.http import HttpResponse
+ from django.test import (
+-    RequestFactory, SimpleTestCase, ignore_warnings, override_settings,
++    RequestFactory, SimpleTestCase, TestCase, ignore_warnings, override_settings,
+ )
+ from django.test.utils import require_jinja2
+ from django.urls import resolve
+ from django.utils.deprecation import RemovedInDjango40Warning
++from django.shortcuts import get_object_or_404
++from django.urls import path
++
++from .models import Author
+ from django.views.generic import RedirectView, TemplateView, View
+ 
+ from . import views
+@@ -603,3 +607,43 @@ class DeprecationTests(SimpleTestCase):
+             str(response.context['foo2'])
+         self.assertEqual(response.context['key'], 'value')
+         self.assertIsInstance(response.context['view'], View)
++
++
++# Test view for #31904
++class KwargsResolutionView(TemplateView):
++    template_name = 'generic_views/about.html'  # Needs a valid template
++
++    def get_context_data(self, **kwargs):
++        context = super().get_context_data(**kwargs)
++        # This get_object_or_404 call would fail if kwargs['author_slug']
++        # was an unresolved SimpleLazyObject.
++        author_slug = self.kwargs.get('author_slug')
++        context['author'] = get_object_or_404(Author, slug=author_slug)
++        return context
++
++# URL patterns for KwargsResolutionView
++# These need to be discoverable by the test runner's URL resolver override.
++# Placing them directly in the test file makes them available when
++# @override_settings(ROOT_URLCONF='generic_views.test_base') is used.
++urlpatterns = [
++    path('kwargs_resolution/<slug:author_slug>/', KwargsResolutionView.as_view(), name='kwargs_resolution'),
++]
++
++@override_settings(ROOT_URLCONF='generic_views.test_base')
++class KwargsResolutionTests(TestCase):
++    @classmethod
++    def setUpTestData(cls):
++        # Create a unique slug to avoid conflicts if Author is used elsewhere.
++        cls.author = Author.objects.create(name='Test Author Kwargs', slug='test-author-kwargs')
++
++    def test_kwargs_resolved_in_get_context_data(self):
++        """
++        kwargs passed from the URL resolver are resolved before being used
++        in get_context_data, preventing crashes when used in ORM queries (#31904).
++        """
++        # Ensure the URL path matches the one defined in urlpatterns above.
++        res = self.client.get('/kwargs_resolution/test-author-kwargs/')
++        self.assertEqual(res.status_code, 200)
++        # Corrected line: use self.author instead of cls.author
++        self.assertEqual(res.context['author'], self.author)
++        self.assertTemplateUsed(res, 'generic_views/about.html')
+\ No newline at end of file

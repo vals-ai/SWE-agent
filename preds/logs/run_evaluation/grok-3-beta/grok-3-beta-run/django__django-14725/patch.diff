@@ -1,0 +1,111 @@
+diff --git a/django/forms/formsets.py b/django/forms/formsets.py
+index 75b0646512..b7e94819af 100644
+--- a/django/forms/formsets.py
++++ b/django/forms/formsets.py
+@@ -66,7 +66,7 @@ class BaseFormSet(RenderableFormMixin):
+ 
+     def __init__(self, data=None, files=None, auto_id='id_%s', prefix=None,
+                  initial=None, error_class=ErrorList, form_kwargs=None,
+-                 error_messages=None):
++                 error_messages=None, can_add=True):
+         self.is_bound = data is not None or files is not None
+         self.prefix = prefix or self.get_default_prefix()
+         self.auto_id = auto_id
+@@ -77,6 +77,7 @@ class BaseFormSet(RenderableFormMixin):
+         self.error_class = error_class
+         self._errors = None
+         self._non_form_errors = None
++        self.can_add = can_add
+ 
+         messages = {}
+         for cls in reversed(type(self).__mro__):
+@@ -149,7 +150,7 @@ class BaseFormSet(RenderableFormMixin):
+             return min(self.management_form.cleaned_data[TOTAL_FORM_COUNT], self.absolute_max)
+         else:
+             initial_forms = self.initial_form_count()
+-            total_forms = max(initial_forms, self.min_num) + self.extra
++            total_forms = max(initial_forms, self.min_num) + (self.extra if self.can_add else 0)
+             # Allow all existing related objects/inlines to be displayed,
+             # but don't allow extra beyond max_num.
+             if initial_forms > self.max_num >= 0:
+@@ -478,7 +479,7 @@ class BaseFormSet(RenderableFormMixin):
+ def formset_factory(form, formset=BaseFormSet, extra=1, can_order=False,
+                     can_delete=False, max_num=None, validate_max=False,
+                     min_num=None, validate_min=False, absolute_max=None,
+-                    can_delete_extra=True, renderer=None):
++                    can_delete_extra=True, renderer=None, can_add=True):
+     """Return a FormSet for the given form class."""
+     if min_num is None:
+         min_num = DEFAULT_MIN_NUM
+@@ -505,6 +506,7 @@ def formset_factory(form, formset=BaseFormSet, extra=1, can_order=False,
+         'validate_min': validate_min,
+         'validate_max': validate_max,
+         'renderer': renderer or get_default_renderer(),
++        'can_add': can_add,
+     }
+     return type(form.__name__ + 'FormSet', (formset,), attrs)
+ 
+diff --git a/django/forms/models.py b/django/forms/models.py
+index 7effb202e3..5e81974cbb 100644
+--- a/django/forms/models.py
++++ b/django/forms/models.py
+@@ -875,7 +875,8 @@ def modelformset_factory(model, form=ModelForm, formfield_callback=None,
+                          widgets=None, validate_max=False, localized_fields=None,
+                          labels=None, help_texts=None, error_messages=None,
+                          min_num=None, validate_min=False, field_classes=None,
+-                         absolute_max=None, can_delete_extra=True, renderer=None):
++                         absolute_max=None, can_delete_extra=True, renderer=None,
++                         can_add=True):
+     """Return a FormSet class for the given Django model class."""
+     meta = getattr(form, 'Meta', None)
+     if (getattr(meta, 'fields', fields) is None and
+@@ -894,7 +895,7 @@ def modelformset_factory(model, form=ModelForm, formfield_callback=None,
+                               can_order=can_order, can_delete=can_delete,
+                               validate_min=validate_min, validate_max=validate_max,
+                               absolute_max=absolute_max, can_delete_extra=can_delete_extra,
+-                              renderer=renderer)
++                              renderer=renderer, can_add=can_add)
+     FormSet.model = model
+     return FormSet
+ 
+diff --git a/tests/forms_tests/tests/test_formsets.py b/tests/forms_tests/tests/test_formsets.py
+index c5a4f259e0..903309bed8 100644
+--- a/tests/forms_tests/tests/test_formsets.py
++++ b/tests/forms_tests/tests/test_formsets.py
+@@ -514,6 +514,36 @@ class FormsFormsetTestCase(SimpleTestCase):
+             [form.cleaned_data for form in formset.deleted_forms],
+             [{'votes': 900, 'DELETE': True, 'choice': 'Fergie'}]
+         )
++    def test_formset_with_can_add_false(self):
++        """
++        formset_factory's can_add argument allows controlling whether extra forms
++        are rendered beyond the initial forms. When can_add is False, no extra forms
++        should be rendered.
++        """
++        ChoiceFormSet = formset_factory(Choice, can_add=False)
++        initial = [{'choice': 'Calexico', 'votes': 100}, {'choice': 'Fergie', 'votes': 900}]
++        formset = ChoiceFormSet(initial=initial, auto_id=False, prefix='choices')
++        self.assertEqual(len(formset.forms), 2)
++        self.assertHTMLEqual(
++            '\n'.join(form.as_ul() for form in formset.forms),
++            """<li>Choice: <input type=\"text\" name=\"choices-0-choice\" value=\"Calexico\"></li>
++<li>Votes: <input type=\"number\" name=\"choices-0-votes\" value=\"100\"></li>
++<li>Choice: <input type=\"text\" name=\"choices-1-choice\" value=\"Fergie\"></li>
++<li>Votes: <input type=\"number\" name=\"choices-1-votes\" value=\"900\"></li>"""
++        )
++    def test_modelformset_with_can_add_false(self):
++        """
++        modelformset_factory's can_add argument allows controlling whether extra forms
++        are rendered beyond the initial forms. When can_add is False, no extra forms
++        should be rendered in a model formset.
++        """
++        from django.forms import modelformset_factory
++        from forms_tests.models import Author
++        AuthorFormSet = modelformset_factory(Author, fields=('name',), can_add=False)
++        authors = [Author.objects.create(name='Author1'), Author.objects.create(name='Author2')]
++        formset = AuthorFormSet(queryset=Author.objects.filter(pk__in=[a.pk for a in authors]))
++        self.assertEqual(len(formset.forms), 2)
++        # Further checks can be added if necessary for HTML output or form behavior
+ 
+     def test_formset_with_deletion_remove_deletion_flag(self):
+         """

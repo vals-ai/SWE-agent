@@ -1,0 +1,44 @@
+diff --git a/src/_pytest/_code/code.py b/src/_pytest/_code/code.py
+index a0f4d15ce..069755803 100644
+--- a/src/_pytest/_code/code.py
++++ b/src/_pytest/_code/code.py
+@@ -895,7 +895,12 @@ class ExceptionChainRepr(ExceptionRepr):
+             if element[2] is not None:
+                 tw.line("")
+                 tw.line(element[2], yellow=True)
+-        super().toterminal(tw)
++
++    def __str__(self):
++        io = py.io.TextIO()
++        tw = py.io.TerminalWriter(file=io)
++        self.toterminal(tw)
++        return io.getvalue().strip()
+ 
+ 
+ class ReprExceptionInfo(ExceptionRepr):
+diff --git a/test_chained_exceptions.py b/test_chained_exceptions.py
+new file mode 100644
+index 000000000..9e6eb1f7d
+--- /dev/null
++++ b/test_chained_exceptions.py
+@@ -0,0 +1,19 @@
++
++def test_chained_exception_with_from():
++    try:
++        try:
++            raise ValueError(11)
++        except Exception as e1:
++            raise ValueError(12) from e1
++    except Exception as e2:
++        raise ValueError(13) from e2
++
++
++def test_chained_exception_without_from():
++    try:
++        try:
++            raise ValueError(21)
++        except Exception:
++            raise ValueError(22)
++    except Exception:
++        raise ValueError(23)
+\ No newline at end of file

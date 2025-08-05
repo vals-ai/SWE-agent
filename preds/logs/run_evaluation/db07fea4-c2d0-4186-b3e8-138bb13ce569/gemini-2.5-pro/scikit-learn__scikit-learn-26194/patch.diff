@@ -1,0 +1,59 @@
+diff --git a/sklearn/metrics/_ranking.py b/sklearn/metrics/_ranking.py
+index 0cdead923..7857a1484 100644
+--- a/sklearn/metrics/_ranking.py
++++ b/sklearn/metrics/_ranking.py
+@@ -1083,7 +1083,7 @@ def roc_curve(
+     # to make sure that the curve starts at (0, 0)
+     tps = np.r_[0, tps]
+     fps = np.r_[0, fps]
+-    thresholds = np.r_[thresholds[0] + 1, thresholds]
++    thresholds = np.r_[np.inf, thresholds]
+ 
+     if fps[-1] <= 0:
+         warnings.warn(
+diff --git a/sklearn/metrics/tests/test_ranking.py b/sklearn/metrics/tests/test_ranking.py
+index f38f118c3..1906f2a2e 100644
+--- a/sklearn/metrics/tests/test_ranking.py
++++ b/sklearn/metrics/tests/test_ranking.py
+@@ -418,13 +418,13 @@ def test_roc_curve_drop_intermediate():
+     y_true = [0, 0, 0, 0, 1, 1]
+     y_score = [0.0, 0.2, 0.5, 0.6, 0.7, 1.0]
+     tpr, fpr, thresholds = roc_curve(y_true, y_score, drop_intermediate=True)
+-    assert_array_almost_equal(thresholds, [2.0, 1.0, 0.7, 0.0])
++    assert_array_almost_equal(thresholds, [np.inf, 1.0, 0.7, 0.0])
+ 
+     # Test dropping thresholds with repeating scores
+     y_true = [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1]
+     y_score = [0.0, 0.1, 0.6, 0.6, 0.7, 0.8, 0.9, 0.6, 0.7, 0.8, 0.9, 0.9, 1.0]
+     tpr, fpr, thresholds = roc_curve(y_true, y_score, drop_intermediate=True)
+-    assert_array_almost_equal(thresholds, [2.0, 1.0, 0.9, 0.7, 0.6, 0.0])
++    assert_array_almost_equal(thresholds, [np.inf, 1.0, 0.9, 0.7, 0.6, 0.0])
+ 
+ 
+ def test_roc_curve_fpr_tpr_increasing():
+@@ -439,6 +439,25 @@ def test_roc_curve_fpr_tpr_increasing():
+     assert (np.diff(tpr) < 0).sum() == 0
+ 
+ 
++
++def test_roc_curve_threshold_probability_estimates():
++    """Check that roc_curve thresholds are reasonable for probability estimates.
++
++    The first threshold should be `np.inf` and others should be <= 1.
++    Non-regression test for gh-26369.
++    """
++    rng = np.random.RandomState(42)
++    y_true = rng.randint(0, 2, size=10)
++    y_score = rng.rand(10)
++    fpr, tpr, thresholds = roc_curve(y_true, y_score)
++
++    # Check that the first threshold is infinity
++    assert thresholds[0] == np.inf
++
++    # Check that other thresholds are within [0, 1]
++    assert (thresholds[1:] <= 1).all()
++    assert (thresholds[1:] >= 0).all()
++
+ def test_auc():
+     # Test Area Under Curve (AUC) computation
+     x = [0, 1]

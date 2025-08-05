@@ -1,0 +1,58 @@
+diff --git a/django/contrib/staticfiles/storage.py b/django/contrib/staticfiles/storage.py
+index f957a667b2..0e416b5b32 100644
+--- a/django/contrib/staticfiles/storage.py
++++ b/django/contrib/staticfiles/storage.py
+@@ -258,9 +258,9 @@ class HashedFilesMixin:
+                 yield name, hashed_name, processed
+             else:
+                 processed_adjustable_paths[name] = (name, hashed_name, processed)
++        substitutions = False
+ 
+         paths = {path: paths[path] for path in adjustable_paths}
+-
+         for i in range(self.max_post_process_passes):
+             substitutions = False
+             for name, hashed_name, processed, subst in self._post_process(paths, adjustable_paths, hashed_files):
+diff --git a/tests/staticfiles_tests/test_storage.py b/tests/staticfiles_tests/test_storage.py
+index db655f2453..950eb981f4 100644
+--- a/tests/staticfiles_tests/test_storage.py
++++ b/tests/staticfiles_tests/test_storage.py
+@@ -327,6 +327,11 @@ class TestExtraPatternsStorage(CollectionTestCase):
+             self.assertIn(b'JS_URL("import.f53576679e5a.css")', relfile.read())
+ 
+ 
++from django.contrib.staticfiles.storage import ManifestStaticFilesStorage
++
++class ZeroPassesManifestStaticFilesStorage(ManifestStaticFilesStorage):
++    max_post_process_passes = 0
++
+ @override_settings(
+     STATICFILES_STORAGE='django.contrib.staticfiles.storage.ManifestStaticFilesStorage',
+ )
+@@ -453,6 +458,26 @@ class TestCollectionManifestStorage(TestHashedFiles, CollectionTestCase):
+             2,
+         )
+ 
++    @override_settings(STATICFILES_STORAGE='staticfiles_tests.test_storage.ZeroPassesManifestStaticFilesStorage')
++    def test_max_post_process_passes_zero(self):
++        """
++        collectstatic should succeed when max_post_process_passes is 0.
++        """
++        # Clear any existing manifest to ensure a clean run
++        manifest_path = storage.staticfiles_storage.path(storage.staticfiles_storage.manifest_name)
++        if os.path.exists(manifest_path):
++            os.remove(manifest_path)
++        storage.staticfiles_storage.hashed_files.clear()
++
++        # Running collectstatic should not raise UnboundLocalError
++        try:
++            self.run_collectstatic()
++        except UnboundLocalError:
++            self.fail("collectstatic raised UnboundLocalError with max_post_process_passes = 0")
++        # Check if a file was collected (basic check)
++        self.assertTrue(storage.staticfiles_storage.exists('test/file.txt'))
++        self.assertPostCondition()
++
+ 
+ @override_settings(STATICFILES_STORAGE='staticfiles_tests.storage.NoneHashStorage')
+ class TestCollectionNoneHashStorage(CollectionTestCase):

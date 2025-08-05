@@ -1,0 +1,72 @@
+diff --git a/django/db/models/sql/compiler.py b/django/db/models/sql/compiler.py
+index 29e33c075f..a83513e473 100644
+--- a/django/db/models/sql/compiler.py
++++ b/django/db/models/sql/compiler.py
+@@ -17,6 +17,7 @@ from django.db.transaction import TransactionManagementError
+ from django.utils.functional import cached_property
+ from django.utils.hashable import make_hashable
+ from django.utils.regex_helper import _lazy_re_compile
++from django.db.models import sql
+ 
+ 
+ class SQLCompiler:
+@@ -1423,6 +1424,19 @@ class SQLDeleteCompiler(SQLCompiler):
+         Create the SQL for this query. Return the SQL string and list of
+         parameters.
+         """
++        # If the query has no WHERE clause, it's a full table delete.
++        # Generate the simple SQL directly, bypassing the single_alias check
++        # and subquery generation. This handles Model.objects.all().delete()
++        # called via the _raw_delete path.
++        if not self.query.where:
++            # Ensure we're working with a DeleteQuery object for _as_sql.
++            if self.query.__class__ is not sql.DeleteQuery:
++                query = self.query.clone(sql.DeleteQuery)
++            else:
++                query = self.query
++            return self._as_sql(query)
++
++        # Original logic follows
+         if self.single_alias:
+             return self._as_sql(self.query)
+         innerq = self.query.clone()
+diff --git a/tests/delete/tests.py b/tests/delete/tests.py
+index c32ebba83f..c5b6a26db3 100644
+--- a/tests/delete/tests.py
++++ b/tests/delete/tests.py
+@@ -604,6 +604,35 @@ class DeletionTests(TestCase):
+                 signal.disconnect(receiver, sender=Referrer)
+ 
+ 
++    def test_delete_all_no_subquery(self):
++        # Test that .all().delete() doesn't use a subquery.
++        # Regression test for #31983.
++        from django.db import connection
++        M2MTo.objects.create()
++        M2MTo.objects.create()
++        # Ensure the connection query log is clear before the test
++        connection.queries_log.clear()
++        with self.assertNumQueries(1):
++            M2MTo.objects.all().delete()
++        # Check the executed query
++        self.assertEqual(len(connection.queries), 1, "Expected exactly one query.")
++        delete_query = connection.queries[-1]['sql']
++        # Use 'startswith' to be flexible with quoting styles across backends
++        # Need to get the actual table name, including quotes if necessary
++        table_name = connection.ops.quote_name(M2MTo._meta.db_table)
++        self.assertTrue(
++            delete_query.startswith(f'DELETE FROM {table_name}'),
++            f"Query '{delete_query}' does not start with 'DELETE FROM {table_name}'"
++        )
++        # Ensure the problematic subquery is NOT present
++        self.assertNotIn(
++            'WHERE', delete_query, f"Query '{delete_query}' unexpectedly contains 'WHERE'"
++        )
++        self.assertNotIn(
++            'IN (SELECT', delete_query, f"Query '{delete_query}' unexpectedly contains 'IN (SELECT'"
++        )
++        self.assertFalse(M2MTo.objects.exists(), "Objects were not deleted.")
++
+ class FastDeleteTests(TestCase):
+ 
+     def test_fast_delete_fk(self):

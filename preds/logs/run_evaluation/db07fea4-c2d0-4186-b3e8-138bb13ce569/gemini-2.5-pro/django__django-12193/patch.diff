@@ -1,0 +1,50 @@
+diff --git a/django/contrib/postgres/forms/array.py b/django/contrib/postgres/forms/array.py
+index 2e19cd574a..18cfccf39c 100644
+--- a/django/contrib/postgres/forms/array.py
++++ b/django/contrib/postgres/forms/array.py
+@@ -147,7 +147,7 @@ class SplitArrayWidget(forms.Widget):
+             if id_:
+                 final_attrs = {**final_attrs, 'id': '%s_%s' % (id_, i)}
+             context['widget']['subwidgets'].append(
+-                self.widget.get_context(name + '_%s' % i, widget_value, final_attrs)['widget']
++                self.widget.get_context(name + '_%s' % i, widget_value, final_attrs.copy())['widget']
+             )
+         return context
+ 
+diff --git a/tests/postgres_tests/test_array.py b/tests/postgres_tests/test_array.py
+index 481d93f830..130072f4cc 100644
+--- a/tests/postgres_tests/test_array.py
++++ b/tests/postgres_tests/test_array.py
+@@ -1001,6 +1001,32 @@ class TestSplitFormField(PostgreSQLSimpleTestCase):
+             </tr>
+         ''')
+ 
++    # To locate the widget's template.
++    @modify_settings(INSTALLED_APPS={'append': 'django.contrib.postgres'})
++    def test_boolean_field_initial(self):
++        """
++        SplitArrayField with BooleanField correctly renders initial values.
++        """
++        class SplitBooleanForm(forms.Form):
++            array = SplitArrayField(forms.BooleanField(required=False), size=3)
++
++        # Initial data: False, True, False
++        form = SplitBooleanForm(initial={'array': [False, True, False]})
++        # Check rendered HTML: only the second checkbox should be checked.
++        self.assertHTMLEqual(str(form['array']), '''
++            <input type="checkbox" name="array_0" id="id_array_0">
++            <input type="checkbox" name="array_1" id="id_array_1" checked>
++            <input type="checkbox" name="array_2" id="id_array_2">
++        ''')
++        # Initial data: True, False, True
++        form = SplitBooleanForm(initial={'array': [True, False, True]})
++        # Check rendered HTML: first and third checkboxes should be checked.
++        self.assertHTMLEqual(str(form['array']), '''
++            <input type="checkbox" name="array_0" id="id_array_0" checked>
++            <input type="checkbox" name="array_1" id="id_array_1">
++            <input type="checkbox" name="array_2" id="id_array_2" checked>
++        ''')
++
+     def test_invalid_char_length(self):
+         field = SplitArrayField(forms.CharField(max_length=2), size=3)
+         with self.assertRaises(exceptions.ValidationError) as cm:

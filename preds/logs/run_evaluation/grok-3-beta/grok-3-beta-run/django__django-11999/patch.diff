@@ -1,0 +1,63 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index ee45bb941e..d4e3164073 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -763,8 +763,10 @@ class Field(RegisterLookupMixin):
+             if not getattr(cls, self.attname, None):
+                 setattr(cls, self.attname, self.descriptor_class(self))
+         if self.choices is not None:
+-            setattr(cls, 'get_%s_display' % self.name,
+-                    partialmethod(cls._get_FIELD_display, field=self))
++            # Check if a custom get_FIELD_display method already exists
++            method_name = 'get_%s_display' % self.name
++            if not hasattr(cls, method_name):
++                setattr(cls, method_name, partialmethod(cls._get_FIELD_display, field=self))
+ 
+     def get_filter_kwargs_for_object(self, obj):
+         """
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..fd89eff2eb
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,39 @@
++
++import django
++from django.db import models
++from django.conf import settings
++
++# Configure minimal Django settings for standalone script
++if not settings.configured:
++    settings.configure(
++        INSTALLED_APPS=['django.contrib.contenttypes', '__main__'],
++        DATABASES={'default': {'ENGINE': 'django.db.backends.sqlite3', 'NAME': ':memory:'}}
++    )
++    django.setup()
++
++class FooBar(models.Model):
++    foo_bar = models.CharField('foo', choices=[(1, 'foo'), (2, 'bar')])
++    def __str__(self):
++        return self.get_foo_bar_display()
++    def get_foo_bar_display(self):
++        return 'something'
++
++# Create an instance to test the output
++foo = FooBar(foo_bar=1)
++print(str(foo))  # Should print 'something' if override works, 'foo' if it doesn't
++
++class DefaultFooBar(models.Model):
++    foo_bar = models.CharField('foo', choices=[(1, 'foo'), (2, 'bar')])
++    def __str__(self):
++        return self.get_foo_bar_display()
++
++# Test default behavior without custom override
++default_foo = DefaultFooBar(foo_bar=1)
++print(str(default_foo))  # Should print 'foo' as per default behavior
++
++# Test with different choice value
++foo2 = FooBar(foo_bar=2)
++print(str(foo2))  # Should print 'something' due to custom override
++default_foo2 = DefaultFooBar(foo_bar=2)
++print(str(default_foo2))  # Should print 'bar' as per default behavior
++print('Script completed successfully, no errors.')
+\ No newline at end of file

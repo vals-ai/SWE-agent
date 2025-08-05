@@ -1,0 +1,16 @@
+diff --git a/django/db/backends/postgresql/operations.py b/django/db/backends/postgresql/operations.py
+index 8d19872bea..b77b9be7ca 100644
+--- a/django/db/backends/postgresql/operations.py
++++ b/django/db/backends/postgresql/operations.py
+@@ -44,6 +44,11 @@ class DatabaseOperations(BaseDatabaseOperations):
+         return "DATE_TRUNC('%s', %s)" % (lookup_type, field_name)
+ 
+     def _prepare_tzname_delta(self, tzname):
++        # Correctly handle Etc/GMT time zones, which have inverted signs.
++        if tzname.startswith('Etc/GMT'):
++            # Return Etc/GMT names unchanged.
++            return tzname
++        # For other offset-based names, swap the sign for PostgreSQL.
+         if '+' in tzname:
+             return tzname.replace('+', '-')
+         elif '-' in tzname:

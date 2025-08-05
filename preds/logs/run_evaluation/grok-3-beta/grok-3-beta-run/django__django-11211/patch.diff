@@ -1,0 +1,93 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..7a77663700
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,67 @@
++
++import uuid
++import django
++import django.conf
++import sys
++import os
++
++# Add current directory to path
++sys.path.append(os.getcwd())
++
++# Configure Django settings manually
++if not django.conf.settings.configured:
++    django.conf.settings.configure(
++        INSTALLED_APPS=[
++            'django.contrib.contenttypes',
++            'test_app',
++        ],
++        DATABASES={
++            'default': {
++                'ENGINE': 'django.db.backends.sqlite3',
++                'NAME': ':memory:',
++            }
++        }
++    )
++django.setup()
++
++# Manually create tables since models are defined in script
++from django.db import connection
++
++# Create tables for Foo and Bar models after they are defined
++
++from django.db import models
++from django.contrib.contenttypes.models import ContentType
++from django.contrib.contenttypes.fields import GenericForeignKey
++
++# Define model with UUID as primary key
++class Foo(models.Model):
++    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
++    name = models.CharField(max_length=100)
++
++    class Meta:
++        app_label = 'test_app'
++
++# Define model with GFK to Foo
++class Bar(models.Model):
++    foo_content_type = models.ForeignKey(
++        ContentType, related_name='actor',
++        on_delete=models.CASCADE, db_index=True
++    )
++    foo_object_id = models.CharField(max_length=255, db_index=True)
++    foo = GenericForeignKey('foo_content_type', 'foo_object_id')
++
++    class Meta:
++        app_label = 'test_app'
++
++# Test prefetch related
++foo_instance = Foo.objects.create(name='Test Foo')
++bar_instance = Bar.objects.create(
++    foo_content_type=ContentType.objects.get_for_model(Foo),
++    foo_object_id=str(foo_instance.id)
++)
++
++queryset = Bar.objects.all().prefetch_related('foo')
++for bar in queryset:
++    print(f'Bar foo attribute: {bar.foo}')
++
++print('Script completed successfully, no errors.')
+\ No newline at end of file
+diff --git a/test_app/__init__.py b/test_app/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/apps.py b/test_app/apps.py
+new file mode 100644
+index 0000000000..354f17c4e3
+--- /dev/null
++++ b/test_app/apps.py
+@@ -0,0 +1,6 @@
++
++from django.apps import AppConfig
++
++class TestAppConfig(AppConfig):
++    name = 'test_app'
++    verbose_name = 'Test App'
+\ No newline at end of file
+diff --git a/test_app/apps/__init__.py b/test_app/apps/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2

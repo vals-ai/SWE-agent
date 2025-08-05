@@ -1,0 +1,28 @@
+diff --git a/astropy/coordinates/sky_coordinate.py b/astropy/coordinates/sky_coordinate.py
+index ab475f7d0d..3f03fd110b 100644
+--- a/astropy/coordinates/sky_coordinate.py
++++ b/astropy/coordinates/sky_coordinate.py
+@@ -895,6 +895,23 @@ class SkyCoord(ShapedLikeNDArray):
+                 return self.transform_to(attr)
+ 
+         # Fail
++        # Check if the attribute is a descriptor (like a property) on the class.
++        # If a descriptor's __get__ raises AttributeError, __getattr__ is called.
++        # We want to propagate the original error in that case.
++        descriptor = getattr(self.__class__, attr, None)
++        is_descriptor = hasattr(descriptor, "__get__")
++
++        if is_descriptor:
++            try:
++                # Attempt to access via __getattribute__ to trigger the descriptor
++                # and potentially re-raise the original AttributeError.
++                # Using super().__getattribute__ avoids recursion with __getattr__.
++                return super().__getattribute__(attr)
++            except AttributeError:
++                # If accessing the descriptor raises AttributeError, re-raise it.
++                raise
++
++        # Otherwise, raise the generic "attribute not found" error.
+         raise AttributeError(
+             f"'{self.__class__.__name__}' object has no attribute '{attr}'"
+         )

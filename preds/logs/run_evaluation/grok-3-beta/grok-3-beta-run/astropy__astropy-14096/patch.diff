@@ -1,0 +1,61 @@
+diff --git a/additional_test.py b/additional_test.py
+new file mode 100644
+index 0000000000..e97c2d0d48
+--- /dev/null
++++ b/additional_test.py
+@@ -0,0 +1,16 @@
++
++import astropy.coordinates as coord
++
++
++class custom_coord(coord.SkyCoord):
++    @property
++    def complex_prop(self):
++        return self.ra, self.non_existent_attr
++
++
++c = custom_coord('00h42m30s', '+41d12m00s', frame='icrs')
++try:
++    c.complex_prop
++except AttributeError as e:
++    print(f'Error caught: {e}')
++print('Script completed successfully, no unhandled errors.')
+\ No newline at end of file
+diff --git a/astropy/coordinates/sky_coordinate.py b/astropy/coordinates/sky_coordinate.py
+index ab475f7d0d..fa91703cad 100644
+--- a/astropy/coordinates/sky_coordinate.py
++++ b/astropy/coordinates/sky_coordinate.py
+@@ -895,6 +895,14 @@ class SkyCoord(ShapedLikeNDArray):
+                 return self.transform_to(attr)
+ 
+         # Fail
++        # Check if the attribute is a property in the class or its subclasses
++        for cls in self.__class__.__mro__:
++            if attr in cls.__dict__ and isinstance(cls.__dict__[attr], property):
++                try:
++                    return cls.__dict__[attr].__get__(self)
++                except AttributeError as e:
++                    raise e
++        # If not a property or if property access fails for other reasons, raise the original error
+         raise AttributeError(
+             f"'{self.__class__.__name__}' object has no attribute '{attr}'"
+         )
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..ef5f148594
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,12 @@
++
++import astropy.coordinates as coord
++
++
++class custom_coord(coord.SkyCoord):
++    @property
++    def prop(self):
++        return self.random_attr
++
++
++c = custom_coord('00h42m30s', '+41d12m00s', frame='icrs')
++c.prop
+\ No newline at end of file

@@ -1,0 +1,63 @@
+diff --git a/reproduce_kbins_error.py b/reproduce_kbins_error.py
+new file mode 100644
+index 000000000..d1e2d3e0b
+--- /dev/null
++++ b/reproduce_kbins_error.py
+@@ -0,0 +1,10 @@
++
++import numpy as np
++from sklearn.preprocessing import KBinsDiscretizer
++
++X = np.array([0, 0.5, 2, 3, 9, 10]).reshape(-1, 1)
++
++# with 5 bins
++est = KBinsDiscretizer(n_bins=5, strategy='kmeans', encode='ordinal')
++Xt = est.fit_transform(X)
++print(Xt)
+\ No newline at end of file
+diff --git a/sklearn/preprocessing/_discretization.py b/sklearn/preprocessing/_discretization.py
+index dd969c12b..1977b533d 100644
+--- a/sklearn/preprocessing/_discretization.py
++++ b/sklearn/preprocessing/_discretization.py
+@@ -172,6 +172,8 @@ class KBinsDiscretizer(BaseEstimator, TransformerMixin):
+                 # 1D k-means procedure
+                 km = KMeans(n_clusters=n_bins[jj], init=init, n_init=1)
+                 centers = km.fit(column[:, None]).cluster_centers_[:, 0]
++                # Sort centers to ensure bin edges are monotonically increasing
++                centers = np.sort(centers)
+                 bin_edges[jj] = (centers[1:] + centers[:-1]) * 0.5
+                 bin_edges[jj] = np.r_[col_min, bin_edges[jj], col_max]
+ 
+diff --git a/test_kbins_edge_cases.py b/test_kbins_edge_cases.py
+new file mode 100644
+index 000000000..9e8e1560a
+--- /dev/null
++++ b/test_kbins_edge_cases.py
+@@ -0,0 +1,26 @@
++
++import numpy as np
++from sklearn.preprocessing import KBinsDiscretizer
++
++# Test case 1: Similar to original issue but with different data
++X1 = np.array([1, 1.2, 5, 6, 10, 11]).reshape(-1, 1)
++est1 = KBinsDiscretizer(n_bins=5, strategy='kmeans', encode='ordinal')
++Xt1 = est1.fit_transform(X1)
++print('Test 1 output:')
++print(Xt1)
++
++# Test case 2: Small number of bins
++X2 = np.array([1, 2, 3, 4, 5]).reshape(-1, 1)
++est2 = KBinsDiscretizer(n_bins=2, strategy='kmeans', encode='ordinal')
++Xt2 = est2.fit_transform(X2)
++print('Test 2 output:')
++print(Xt2)
++
++# Test case 3: Data with repeated values
++X3 = np.array([1, 1, 1, 2, 2, 3]).reshape(-1, 1)
++est3 = KBinsDiscretizer(n_bins=3, strategy='kmeans', encode='ordinal')
++Xt3 = est3.fit_transform(X3)
++print('Test 3 output:')
++print(Xt3)
++
++print('All tests completed successfully, no errors.')
+\ No newline at end of file

@@ -1,0 +1,66 @@
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index d913658291..d2b316b90a 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -302,13 +302,25 @@ class BaseExpression:
+         for output_field in sources_iter:
+             for source in sources_iter:
+                 if not isinstance(output_field, source.__class__):
+-                    raise FieldError(
+-                        'Expression contains mixed types: %s, %s. You must '
+-                        'set output_field.' % (
+-                            output_field.__class__.__name__,
+-                            source.__class__.__name__,
++                    from django.db.models import DateTimeField, DurationField
++                    # Special handling for temporal fields
++                    if all(isinstance(f, (DateTimeField, DurationField)) for f in (output_field, source)):
++                        if isinstance(output_field, DateTimeField) and isinstance(source, DateTimeField):
++                            return DurationField()
++                        elif isinstance(output_field, DateTimeField) and isinstance(source, DurationField):
++                            return DateTimeField() if self.connector == '-' else DateTimeField()
++                        elif isinstance(output_field, DurationField) and isinstance(source, DateTimeField):
++                            return DateTimeField() if self.connector == '+' else DateTimeField()
++                        elif isinstance(output_field, DurationField) and isinstance(source, DurationField):
++                            return DurationField()
++                    else:
++                        raise FieldError(
++                            'Expression contains mixed types: %s, %s. You must '
++                            'set output_field.' % (
++                                output_field.__class__.__name__,
++                                source.__class__.__name__,
++                            )
+                         )
+-                    )
+             return output_field
+ 
+     @staticmethod
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..f941e2e3b4
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,23 @@
++
++import django
++from django.db import models
++from django.db.models import F, Value
++from django.db.models.fields import DurationField
++from datetime import timedelta
++
++django.conf.settings.configure(
++    INSTALLED_APPS=['__main__']
++)
++django.setup()
++
++class Experiment(models.Model):
++    start = models.DateTimeField()
++    end = models.DateTimeField()
++
++try:
++    Experiment.objects.annotate(
++        delta=F('end') - F('start') + Value(timedelta(), output_field=DurationField())
++    )
++    print('Script completed successfully, no errors.')
++except Exception as e:
++    print(f'Error: {e}')
+\ No newline at end of file

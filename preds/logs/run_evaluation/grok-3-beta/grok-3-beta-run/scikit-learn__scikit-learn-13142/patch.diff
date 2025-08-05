@@ -1,0 +1,58 @@
+diff --git a/reproduce_gm.py b/reproduce_gm.py
+new file mode 100644
+index 000000000..8a00ef46d
+--- /dev/null
++++ b/reproduce_gm.py
+@@ -0,0 +1,23 @@
++
++from sklearn.mixture import GaussianMixture
++from sklearn.utils.testing import assert_array_equal
++import numpy
++X = numpy.random.randn(1000,5)
++print('no n_init')
++gm = GaussianMixture(n_components=5)
++c1 = gm.fit_predict(X)
++c2 = gm.predict(X)
++assert_array_equal(c1,c2)
++print('n_init=5')
++gm = GaussianMixture(n_components=5, n_init=5)
++c1 = gm.fit_predict(X)
++c2 = gm.predict(X)
++
++# Adding debug output to see if arrays match
++if not numpy.array_equal(c1, c2):
++    print('Mismatch found with n_init=5')
++    print('fit_predict output (first 10):', c1[:10])
++    print('predict output (first 10):', c2[:10])
++else:
++    print('Arrays match with n_init=5')
++assert_array_equal(c1,c2)
+\ No newline at end of file
+diff --git a/sklearn/mixture/base.py b/sklearn/mixture/base.py
+index bd34333c0..2a2698acf 100644
+--- a/sklearn/mixture/base.py
++++ b/sklearn/mixture/base.py
+@@ -257,10 +257,9 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
+                 best_params = self._get_parameters()
+                 best_n_iter = n_iter
+ 
+-        # Always do a final e-step to guarantee that the labels returned by
+-        # fit_predict(X) are always consistent with fit(X).predict(X)
+-        # for any value of max_iter and tol (and any random_state).
+-        _, log_resp = self._e_step(X)
++        # Moved final e-step after setting best parameters to ensure consistency
++        # between fit_predict(X) and fit(X).predict(X) for any value of max_iter, tol, and random_state.
++        pass  # Placeholder, actual E-step moved below
+ 
+         if not self.converged_:
+             warnings.warn('Initialization %d did not converge. '
+@@ -271,6 +270,9 @@ class BaseMixture(DensityMixin, BaseEstimator, metaclass=ABCMeta):
+ 
+         self._set_parameters(best_params)
+         self.n_iter_ = best_n_iter
++        # Perform final E-step with best parameters to ensure consistency
++        # between fit_predict(X) and fit(X).predict(X)
++        _, log_resp = self._e_step(X)
+         self.lower_bound_ = max_lower_bound
+ 
+         return log_resp.argmax(axis=1)

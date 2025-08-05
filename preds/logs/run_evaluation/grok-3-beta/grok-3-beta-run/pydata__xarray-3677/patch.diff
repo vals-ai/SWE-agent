@@ -1,0 +1,59 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..d2a58fa0
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,10 @@
++
++import xarray as xr
++
++ds = xr.Dataset({'a': 0})
++da = xr.DataArray(1, name='b')
++
++expected = xr.merge([ds, da])  # works fine
++print(expected)
++
++ds.merge(da)  # fails
+\ No newline at end of file
+diff --git a/test_merge_edge_cases.py b/test_merge_edge_cases.py
+new file mode 100644
+index 00000000..553a1098
+--- /dev/null
++++ b/test_merge_edge_cases.py
+@@ -0,0 +1,20 @@
++
++import xarray as xr
++
++# Test 1: DataArray with no name
++ds = xr.Dataset({'a': 0})
++da_no_name = xr.DataArray(1)
++try:
++    result = ds.merge(da_no_name)
++    print('Test 1 failed: Should raise an error for DataArray with no name')
++except ValueError as e:
++    print('Test 1 passed: Correctly raised ValueError for DataArray with no name')
++
++# Test 2: DataArray with dimensions
++ds = xr.Dataset({'a': 0})
++da_with_dims = xr.DataArray([1, 2, 3], dims='x', name='c')
++result = ds.merge(da_with_dims)
++print('Test 2 passed: Successfully merged DataArray with dimensions')
++print(result)
++
++print('All tests completed.')
+\ No newline at end of file
+diff --git a/xarray/core/merge.py b/xarray/core/merge.py
+index 10c7804d..f985910c 100644
+--- a/xarray/core/merge.py
++++ b/xarray/core/merge.py
+@@ -391,6 +391,10 @@ def coerce_pandas_values(objects: Iterable["CoercibleMapping"]) -> List["Dataset
+             variables = {}
+             if isinstance(obj, PANDAS_TYPES):
+                 obj = dict(obj.iteritems())
++            elif isinstance(obj, DataArray):
++                if obj.name is None:
++                    raise ValueError("DataArray must have a name to be merged into a Dataset")
++                obj = {obj.name: obj}
+             for k, v in obj.items():
+                 if isinstance(v, PANDAS_TYPES):
+                     v = DataArray(v)

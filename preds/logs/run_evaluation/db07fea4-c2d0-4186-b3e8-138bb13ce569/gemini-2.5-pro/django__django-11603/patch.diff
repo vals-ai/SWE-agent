@@ -1,0 +1,141 @@
+diff --git a/django/db/models/aggregates.py b/django/db/models/aggregates.py
+index da4ff928aa..beaeb84387 100644
+--- a/django/db/models/aggregates.py
++++ b/django/db/models/aggregates.py
+@@ -98,6 +98,7 @@ class Aggregate(Func):
+ 
+ class Avg(FixDurationInputMixin, NumericOutputFieldMixin, Aggregate):
+     function = 'AVG'
++    allow_distinct = True
+     name = 'Avg'
+ 
+ 
+@@ -120,11 +121,13 @@ class Count(Aggregate):
+ 
+ class Max(Aggregate):
+     function = 'MAX'
++    allow_distinct = True
+     name = 'Max'
+ 
+ 
+ class Min(Aggregate):
+     function = 'MIN'
++    allow_distinct = True
+     name = 'Min'
+ 
+ 
+@@ -141,6 +144,7 @@ class StdDev(NumericOutputFieldMixin, Aggregate):
+ 
+ class Sum(FixDurationInputMixin, Aggregate):
+     function = 'SUM'
++    allow_distinct = True
+     name = 'Sum'
+ 
+ 
+diff --git a/tests/aggregation/tests.py b/tests/aggregation/tests.py
+index bd6ecf699c..50678366d0 100644
+--- a/tests/aggregation/tests.py
++++ b/tests/aggregation/tests.py
+@@ -118,7 +118,101 @@ class AggregateTestCase(TestCase):
+ 
+     def test_multiple_aggregates(self):
+         vals = Author.objects.aggregate(Sum("age"), Avg("age"))
+-        self.assertEqual(vals, {"age__sum": 337, "age__avg": Approximate(37.4, places=1)})
++
++    def test_distinct_aggregates(self):
++        # Test Avg(distinct=True)
++        # Publisher P1 has books with ratings 4.5, 4.0
++        # Publisher P2 has book with rating 3.0
++        # Publisher P3 has books with ratings 4.0, 4.0
++        # Publisher P4 has book with rating 5.0
++        # Distinct ratings per publisher:
++        # P1: {4.5, 4.0} -> Avg = 4.25
++        # P2: {3.0} -> Avg = 3.0
++        # P3: {4.0} -> Avg = 4.0
++        # P4: {5.0} -> Avg = 5.0
++        # P5: {} -> Avg = None
++        vals = Publisher.objects.annotate(
++            avg_distinct_rating=Avg('book__rating', distinct=True)
++        ).order_by('name').values('name', 'avg_distinct_rating')
++        self.assertSequenceEqual(
++            vals,
++            [
++                {'name': 'Apress', 'avg_distinct_rating': Approximate(4.25)},
++                {'name': "Jonno's House of Books", 'avg_distinct_rating': None},
++                {'name': 'Morgan Kaufmann', 'avg_distinct_rating': Approximate(5.0)},
++                {'name': 'Prentice Hall', 'avg_distinct_rating': Approximate(4.0)},
++                {'name': 'Sams', 'avg_distinct_rating': Approximate(3.0)},
++            ]
++        )
++
++        # Test Sum(distinct=True)
++        # Publisher P1 has books with prices 30.00, 29.69
++        # Publisher P2 has book with price 23.09
++        # Publisher P3 has books with prices 29.69, 82.80
++        # Publisher P4 has book with price 75.00
++        # Distinct prices per publisher:
++        # P1: {30.00, 29.69} -> Sum = 59.69
++        # P2: {23.09} -> Sum = 23.09
++        # P3: {29.69, 82.80} -> Sum = 112.49
++        # P4: {75.00} -> Sum = 75.00
++        # P5: {} -> Sum = None
++        vals = Publisher.objects.annotate(
++            sum_distinct_price=Sum('book__price', distinct=True)
++        ).order_by('name').values('name', 'sum_distinct_price')
++        self.assertSequenceEqual(
++            vals,
++            [
++                {'name': 'Apress', 'sum_distinct_price': Decimal('59.69')},
++                {'name': "Jonno's House of Books", 'sum_distinct_price': None},
++                {'name': 'Morgan Kaufmann', 'sum_distinct_price': Decimal('75.00')},
++                {'name': 'Prentice Hall', 'sum_distinct_price': Decimal('112.49')},
++                {'name': 'Sams', 'sum_distinct_price': Decimal('23.09')},
++            ]
++        )
++
++        # Test distinct=True on non-related field (should have no effect but work)
++        vals = Publisher.objects.aggregate(sum_distinct_awards=Sum('num_awards', distinct=True))
++        # Distinct awards: 3, 1, 7, 9, 0 -> Sum = 20
++        self.assertEqual(vals, {'sum_distinct_awards': 20})
++
++        vals = Publisher.objects.aggregate(avg_distinct_awards=Avg('num_awards', distinct=True))
++        # Distinct awards: 3, 1, 7, 9, 0 -> Avg = 4.0
++
++
++        # Test Min/Max(distinct=True) (should work, even if redundant)
++        vals = Publisher.objects.aggregate(min_distinct_awards=Min('num_awards', distinct=True))
++        self.assertEqual(vals, {'min_distinct_awards': 0})
++
++        vals = Publisher.objects.aggregate(max_distinct_awards=Max('num_awards', distinct=True))
++        self.assertEqual(vals, {'max_distinct_awards': 9})
++
++        vals = Publisher.objects.annotate(
++            min_distinct_rating=Min('book__rating', distinct=True)
++        ).order_by('name').values('name', 'min_distinct_rating')
++        self.assertSequenceEqual(
++            vals,
++            [
++                {'name': 'Apress', 'min_distinct_rating': Approximate(4.0)},
++                {'name': "Jonno's House of Books", 'min_distinct_rating': None},
++                {'name': 'Morgan Kaufmann', 'min_distinct_rating': Approximate(5.0)},
++                {'name': 'Prentice Hall', 'min_distinct_rating': Approximate(4.0)},
++                {'name': 'Sams', 'min_distinct_rating': Approximate(3.0)},
++            ]
++        )
++
++        vals = Publisher.objects.annotate(
++            max_distinct_rating=Max('book__rating', distinct=True)
++        ).order_by('name').values('name', 'max_distinct_rating')
++        self.assertSequenceEqual(
++            vals,
++            [
++                {'name': 'Apress', 'max_distinct_rating': Approximate(4.5)},
++                {'name': "Jonno's House of Books", 'max_distinct_rating': None},
++                {'name': 'Morgan Kaufmann', 'max_distinct_rating': Approximate(5.0)},
++                {'name': 'Prentice Hall', 'max_distinct_rating': Approximate(4.0)},
++                {'name': 'Sams', 'max_distinct_rating': Approximate(3.0)},
++            ]
++        )
+ 
+     def test_filter_aggregate(self):
+         vals = Author.objects.filter(age__gt=29).aggregate(Sum("age"))

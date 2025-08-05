@@ -1,0 +1,22 @@
+diff --git a/xarray/core/variable.py b/xarray/core/variable.py
+index 379be8f5..90956713 100644
+--- a/xarray/core/variable.py
++++ b/xarray/core/variable.py
+@@ -28,7 +28,7 @@ except ImportError:
+ 
+ 
+ NON_NUMPY_SUPPORTED_ARRAY_TYPES = (
+-    indexing.ExplicitlyIndexed, pd.Index) + dask_array_type
++    indexing.ExplicitlyIndexed, pd.Index, PandasIndexAdapter) + dask_array_type
+ # https://github.com/python/mypy/issues/224
+ BASIC_INDEXING_TYPES = integer_types + (slice,)  # type: ignore
+ 
+@@ -1947,7 +1947,7 @@ class IndexVariable(Variable):
+                 # point, which doesn't have a copy method, so make a deep copy
+                 # of the underlying `pandas.MultiIndex` and create a new
+                 # `PandasIndexAdapter` instance with it.
+-                data = PandasIndexAdapter(self._data.array.copy(deep=True))
++                data = PandasIndexAdapter(self._data.array, dtype=self.dtype)
+             else:
+                 data = self._data
+         else:

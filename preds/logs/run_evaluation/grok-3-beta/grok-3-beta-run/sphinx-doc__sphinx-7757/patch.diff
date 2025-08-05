@@ -1,0 +1,14 @@
+diff --git a/sphinx/domains/python.py b/sphinx/domains/python.py
+index fc1136ae2..e59737269 100644
+--- a/sphinx/domains/python.py
++++ b/sphinx/domains/python.py
+@@ -201,7 +201,8 @@ def _pseudo_parse_arglist(signode: desc_signature, arglist: str) -> None:
+     paramlist = addnodes.desc_parameterlist()
+     stack = [paramlist]  # type: List[Element]
+     try:
+-        for argument in arglist.split(','):
++        arguments = arglist.split(',')
++        for i, argument in enumerate(arguments):
+             argument = argument.strip()
+             ends_open = ends_close = 0
+             while argument.startswith('['):

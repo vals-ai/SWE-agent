@@ -1,0 +1,35 @@
+diff --git a/django/db/models/deletion.py b/django/db/models/deletion.py
+index 3a462f1c4c..b63861f4e0 100644
+--- a/django/db/models/deletion.py
++++ b/django/db/models/deletion.py
+@@ -217,7 +217,7 @@ class Collector:
+                     continue
+                 batches = self.get_del_batches(new_objs, field)
+                 for batch in batches:
+-                    sub_objs = self.related_objects(related, batch)
++                    sub_objs = self.related_objects(related.related_model, related, batch)
+                     if self.can_fast_delete(sub_objs, from_field=field):
+                         self.fast_deletes.append(sub_objs)
+                     elif sub_objs:
+@@ -228,13 +228,19 @@ class Collector:
+                     sub_objs = field.bulk_related_objects(new_objs, self.using)
+                     self.collect(sub_objs, source=model, nullable=True)
+ 
+-    def related_objects(self, related, objs):
++    def related_objects(self, model, related, objs):
+         """
+         Get a QuerySet of objects related to `objs` via the relation `related`.
+         """
+-        return related.related_model._base_manager.using(self.using).filter(
++        qs = related.related_model._base_manager.using(self.using).filter(
+             **{"%s__in" % related.field.name: objs}
+         )
++        # If the model has pre/post_delete signals, we must load the full
++        # instance to avoid DoesNotExist errors in signal handlers. See #21576.
++        if (signals.pre_delete.has_listeners(model) or
++                signals.post_delete.has_listeners(model)):
++            return qs
++        return qs.only('pk')
+ 
+     def instances_with_model(self):
+         for model, instances in self.data.items():

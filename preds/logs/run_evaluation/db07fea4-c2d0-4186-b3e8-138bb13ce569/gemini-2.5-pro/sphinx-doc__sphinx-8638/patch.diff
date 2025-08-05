@@ -1,0 +1,94 @@
+diff --git a/sphinx/domains/python.py b/sphinx/domains/python.py
+index 000e2e8d3..1e9b71a5c 100644
+--- a/sphinx/domains/python.py
++++ b/sphinx/domains/python.py
+@@ -1162,18 +1162,21 @@ class PythonDomain(Domain):
+                                    self.objects[oname].objtype in objtypes]
+         else:
+             # NOTE: searching for exact match, object type is not considered
+-            if name in self.objects:
+-                newname = name
+-            elif type == 'mod':
+-                # only exact matches allowed for modules
+-                return []
++            # Priority: Class methods/attributes
++            if modname and classname and \
++                    modname + '.' + classname + '.' + name in self.objects:
++                newname = modname + '.' + classname + '.' + name
+             elif classname and classname + '.' + name in self.objects:
+                 newname = classname + '.' + name
++            # Then module level
+             elif modname and modname + '.' + name in self.objects:
+                 newname = modname + '.' + name
+-            elif modname and classname and \
+-                    modname + '.' + classname + '.' + name in self.objects:
+-                newname = modname + '.' + classname + '.' + name
++            # Then global (builtin?)
++            elif name in self.objects:
++                newname = name
++            elif type == 'mod':
++                # only exact matches allowed for modules
++                return []
+         if newname is not None:
+             matches.append((newname, self.objects[newname]))
+         return matches
+diff --git a/sphinx/util/docfields.py b/sphinx/util/docfields.py
+index 79abfe14b..f34a346c6 100644
+--- a/sphinx/util/docfields.py
++++ b/sphinx/util/docfields.py
+@@ -7,6 +7,8 @@
+ 
+     :copyright: Copyright 2007-2021 by the Sphinx team, see AUTHORS.
+     :license: BSD, see LICENSE for details.
++from docutils import nodes
++from typing import cast, Dict, List, Tuple, Union
+ """
+ 
+ from typing import TYPE_CHECKING, Any, Dict, List, Tuple, Type, Union, cast
+@@ -19,6 +21,7 @@ from sphinx.util.typing import TextlikeNode
+ 
+ if TYPE_CHECKING:
+     from sphinx.directive import ObjectDescription
++    from sphinx.domains.python import PythonDomain
+     from sphinx.environment import BuildEnvironment
+ 
+ 
+@@ -311,6 +314,38 @@ class DocFieldTransformer:
+             translatable_content.document = field_body.parent.document
+             translatable_content.source = field_body.parent.source
+             translatable_content.line = field_body.parent.line
++            # Register the field argument as a target object if it's a Python domain field
++            # This helps resolve references to instance variables documented in field lists
++            if self.directive.domain == 'py' and not is_typefield and fieldarg:
++                env = self.directive.state.document.settings.env
++                domain = env.get_domain('py')
++                modname = env.ref_context.get('py:module')
++                classname = env.ref_context.get('py:class')
++
++                # Determine object type based on field type (e.g., 'variable' -> 'attribute')
++                # This mapping might need refinement based on PyObject.objtype
++                objtype_map = {'parameter': 'parameter',
++                               'variable': 'attribute',
++                               'instance variable': 'attribute',
++                               'class variable': 'attribute'}
++                objtype = objtype_map.get(typedesc.name, 'object') # Default if not mapped
++
++                if classname:
++                    fullname = f"{modname}.{classname}.{fieldarg}" if modname else f"{classname}.{fieldarg}"
++                elif modname:
++                    fullname = f"{modname}.{fieldarg}"
++                else:
++                    fullname = fieldarg
++
++                # Use the field node's ID as the target ID, make unique per field arg
++                node_id = nodes.make_id(fullname)
++
++                # Use the field body as a proxy for location
++                location = field_body
++
++                # Only register if not already present (avoid conflicts with explicit directives)
++                if fullname not in domain.objects:
++                    domain.note_object(fullname, objtype, node_id, location=location)
+             translatable_content += content
+ 
+             # grouped entries need to be collected in one entry, while others

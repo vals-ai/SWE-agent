@@ -1,0 +1,44 @@
+diff --git a/astropy/io/ascii/rst.py b/astropy/io/ascii/rst.py
+index abdeba8efb..eda0f37b3a 100644
+--- a/astropy/io/ascii/rst.py
++++ b/astropy/io/ascii/rst.py
+@@ -57,10 +57,19 @@ class RST(FixedWidth):
+     data_class = SimpleRSTData
+     header_class = SimpleRSTHeader
+ 
+-    def __init__(self):
++    def __init__(self, header_rows=None):
+         super().__init__(delimiter_pad=None, bookend=False)
++        self.header_rows = header_rows if header_rows else ['name']
+ 
+     def write(self, lines):
+         lines = super().write(lines)
+-        lines = [lines[1]] + lines + [lines[1]]
++        header_lines = [lines[1]]
++        if len(self.header_rows) > 1:
++            # Add additional header rows if specified
++            for row_type in self.header_rows[1:]:
++                if row_type == 'unit':
++                    # Assuming units are available in the table meta or columns
++                    unit_line = ' '.join([str(getattr(col, 'unit', '')) for col in getattr(self.header, 'cols', [])])
++                    header_lines.append(unit_line)
++        lines = header_lines + lines[2:] + [lines[1]]
+         return lines
+diff --git a/reproduce_rst_header.py b/reproduce_rst_header.py
+new file mode 100644
+index 0000000000..f08f4a04aa
+--- /dev/null
++++ b/reproduce_rst_header.py
+@@ -0,0 +1,11 @@
++
++from astropy.table import QTable
++import astropy.units as u
++import sys
++
++tbl = QTable({'wave': [350,950]*u.nm, 'response': [0.7, 1.2]*u.count})
++
++# This should work but will raise an error
++tbl.write(sys.stdout, format="ascii.rst", header_rows=["name", "unit"])
++
++print("Script completed successfully, no errors.")
+\ No newline at end of file

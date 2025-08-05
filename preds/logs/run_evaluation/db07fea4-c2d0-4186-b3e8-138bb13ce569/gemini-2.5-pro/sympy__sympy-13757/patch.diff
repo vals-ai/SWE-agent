@@ -1,0 +1,83 @@
+diff --git a/sympy/polys/polytools.py b/sympy/polys/polytools.py
+index d5ac051f63..98043a7e32 100644
+--- a/sympy/polys/polytools.py
++++ b/sympy/polys/polytools.py
+@@ -10,6 +10,7 @@
+ from sympy.core.symbol import Symbol
+ from sympy.core.basic import preorder_traversal
+ from sympy.core.relational import Relational
++from sympy.core.sympify import _sympify, SympifyError
+ from sympy.core.sympify import sympify
+ from sympy.core.decorators import _sympifyit
+ from sympy.core.function import Derivative
+@@ -105,6 +106,7 @@ class Poly(Expr):
+     __slots__ = ['rep', 'gens']
+ 
+     is_commutative = True
++    _op_priority = 11.0
+     is_Poly = True
+ 
+     def __new__(cls, rep, *gens, **args):
+@@ -1212,11 +1214,46 @@ def mul_ground(f, coeff):
+         Poly(2*x + 2, x, domain='ZZ')
+ 
+         """
++        # Ensure coeff is a SymPy object
++        if not isinstance(coeff, Basic):
++            coeff = sympify(coeff)
++
++        # If coeff is not a number, multiply as expressions and try to convert back
++        if not coeff.is_number:
++            result_expr = f.as_expr() * coeff
++            try:
++                # Attempt to create a new Poly from the expression result
++                # Use the same generators and domain as the original Poly f
++                return f.__class__(result_expr, *f.gens, domain=f.domain)
++            except PolynomialError:
++                # If conversion fails, it means the result is not a polynomial
++                # in the expected variables/domain. Raise an error.
++                raise TypeError(f"Cannot multiply Poly {f} by non-numeric expression {coeff} "
++                                f"that doesn't result in a valid Poly.")
++
++        # If coeff is a number, proceed with ground multiplication
++        try:
++            # Convert coeff using the Poly's domain
++            _coeff = f.domain.convert(coeff)
++        except CoercionFailed as exc:
++            # If coeff can't be converted to the domain, maybe try promoting
++            # the domain or raise the error? For now, re-raise.
++            # TODO: Consider domain promotion?
++            raise exc
++
++        # Handle multiplication by zero or one efficiently
++        if not _coeff:
++            return f.zero
++        if _coeff == f.domain.one:
++            return f
++
++        # Perform the actual ground multiplication using the representation
+         if hasattr(f.rep, 'mul_ground'):
+-            result = f.rep.mul_ground(coeff)
++            result = f.rep.mul_ground(_coeff)
+         else:  # pragma: no cover
+             raise OperationNotSupported(f, 'mul_ground')
+ 
++        # Convert the result representation back to a Poly object
+         return f.per(result)
+ 
+     def quo_ground(f, coeff):
+@@ -4049,13 +4086,7 @@ def __mul__(f, g):
+ 
+     @_sympifyit('g', NotImplemented)
+     def __rmul__(f, g):
+-        if not g.is_Poly:
+-            try:
+-                g = f.__class__(g, *f.gens)
+-            except PolynomialError:
+-                return g*f.as_expr()
+-
+-        return g.mul(f)
++        return f.mul(g)
+ 
+     @_sympifyit('n', NotImplemented)
+     def __pow__(f, n):

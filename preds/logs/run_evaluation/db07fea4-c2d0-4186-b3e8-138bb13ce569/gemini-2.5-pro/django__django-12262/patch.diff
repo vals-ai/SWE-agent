@@ -1,0 +1,20 @@
+diff --git a/tests/template_tests/templatetags/custom.py b/tests/template_tests/templatetags/custom.py
+index a5e1b33c67..beb4ebdcfd 100644
+--- a/tests/template_tests/templatetags/custom.py
++++ b/tests/template_tests/templatetags/custom.py
+@@ -98,6 +98,15 @@ def simple_keyword_only_default(*, kwarg=42):
+     return "simple_keyword_only_default - Expected result: %s" % kwarg
+ 
+ 
++@register.simple_tag
++def simple_keyword_only_default_used(*, greeting='hello'):
++    return f'{greeting} world'
++
++
++@register.simple_tag
++def simple_keyword_only_required(*, greeting):
++    return f'{greeting} world'
++
+ @register.simple_tag
+ def simple_one_default(one, two='hi'):
+     """Expected simple_one_default __doc__"""

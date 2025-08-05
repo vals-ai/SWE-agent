@@ -1,0 +1,106 @@
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 000000000..7bb57b4f9
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,41 @@
++
++from sklearn.feature_extraction.text import CountVectorizer
++from sklearn.exceptions import NotFittedError
++
++# Case 1: No vocabulary provided, transform before fit
++print("--- Case 1: No vocabulary, transform before fit ---")
++vectorizer1 = CountVectorizer()
++corpus = [
++    'This is the first document.',
++    'This is the second second document.',
++    'And the third one.',
++    'Is this the first document?',
++]
++try:
++    vectorizer1.transform(corpus)
++except NotFittedError as e:
++    print(f"Caught expected error: {e}")
++
++# Case 2: Vocabulary provided, get_feature_names before transform/fit
++print("\n--- Case 2: Vocabulary provided, get_feature_names before transform/fit ---")
++vocabulary = ['and', 'document', 'first', 'is', 'one', 'second', 'the', 'third', 'this']
++vectorizer2 = CountVectorizer(vocabulary=vocabulary)
++
++print(f"Has vectorizer2.vocabulary_ before get_feature_names: {hasattr(vectorizer2, 'vocabulary_')}")
++try:
++    print("Calling vectorizer2.get_feature_names()...")
++    feature_names = vectorizer2.get_feature_names()
++    print(f"Feature names: {feature_names}") # This should ideally work
++except NotFittedError as e:
++    print(f"Caught unexpected error: {e}") # This is the bug
++
++# Case 3: Vocabulary provided, transform then get_feature_names
++print("\n--- Case 3: Vocabulary provided, transform then get_feature_names ---")
++vectorizer3 = CountVectorizer(vocabulary=vocabulary)
++print(f"Has vectorizer3.vocabulary_ before transform: {hasattr(vectorizer3, 'vocabulary_')}")
++vectorizer3.transform(corpus)
++print(f"Has vectorizer3.vocabulary_ after transform: {hasattr(vectorizer3, 'vocabulary_')}")
++feature_names3 = vectorizer3.get_feature_names()
++print(f"Feature names after transform: {feature_names3}")
++
++print("\nScript completed.")
+\ No newline at end of file
+diff --git a/sklearn/feature_extraction/tests/test_text.py b/sklearn/feature_extraction/tests/test_text.py
+index 22fbd3f17..6c07050b5 100644
+--- a/sklearn/feature_extraction/tests/test_text.py
++++ b/sklearn/feature_extraction/tests/test_text.py
+@@ -29,6 +29,7 @@ from sklearn.utils.testing import (assert_equal, assert_false, assert_true,
+                                    assert_warns_message, assert_raise_message,
+                                    clean_warning_registry, ignore_warnings,
+                                    SkipTest, assert_raises)
++from sklearn.exceptions import NotFittedError
+ 
+ from collections import defaultdict, Mapping
+ from functools import partial
+@@ -1019,3 +1020,25 @@ def test_vectorizers_invalid_ngram_range(vec):
+     if isinstance(vec, HashingVectorizer):
+         assert_raise_message(
+             ValueError, message, vec.transform, ["good news everyone"])
++
++
++def test_countvectorizer_get_feature_names_predefined_vocabulary():
++    # Test that get_feature_names works when vocabulary is provided
++    # even if fit or transform hasn't been called.
++    # See https://github.com/scikit-learn/scikit-learn/issues/18447
++    vocab = ['a', 'b', 'c']
++    vec = CountVectorizer(vocabulary=vocab)
++
++    # Should not raise NotFittedError
++    feature_names = vec.get_feature_names()
++    assert_equal(feature_names, vocab)
++
++    # Ensure it still works after transform
++    vec.transform(['a b'])
++    feature_names_after_transform = vec.get_feature_names()
++    assert_equal(feature_names_after_transform, vocab)
++
++    # Ensure the original behavior (NotFittedError) is preserved
++    # when no vocabulary is provided initially.
++    vec_no_vocab = CountVectorizer()
++    assert_raises(NotFittedError, vec_no_vocab.get_feature_names)
+\ No newline at end of file
+diff --git a/sklearn/feature_extraction/text.py b/sklearn/feature_extraction/text.py
+index 9b1ebd632..c269d9763 100644
+--- a/sklearn/feature_extraction/text.py
++++ b/sklearn/feature_extraction/text.py
+@@ -993,7 +993,13 @@ class CountVectorizer(BaseEstimator, VectorizerMixin):
+ 
+     def get_feature_names(self):
+         """Array mapping from feature integer indices to feature name"""
+-        self._check_vocabulary()
++        if self.vocabulary is not None:
++            # If vocabulary is provided, validate it to set self.vocabulary_
++            # This allows get_feature_names to work without fit/transform
++            self._validate_vocabulary()
++        else:
++            # Otherwise, check if fitted
++            self._check_vocabulary()
+ 
+         return [t for t, i in sorted(six.iteritems(self.vocabulary_),
+                                      key=itemgetter(1))]

@@ -1,0 +1,51 @@
+diff --git a/django/db/models/expressions.py b/django/db/models/expressions.py
+index 81f8f79c71..5c0c0fb3a1 100644
+--- a/django/db/models/expressions.py
++++ b/django/db/models/expressions.py
+@@ -1210,14 +1210,20 @@ class Exists(Subquery):
+         return clone
+ 
+     def as_sql(self, compiler, connection, template=None, **extra_context):
+-        query = self.query.exists(using=connection.alias)
+-        sql, params = super().as_sql(
+-            compiler,
+-            connection,
+-            template=template,
+-            query=query,
+-            **extra_context,
+-        )
++        # Check if the queryset is explicitly empty (like .none())
++        if getattr(self.query, 'is_empty', lambda: False)():
++            # For empty querysets, return a constant value to prevent WHERE clause removal
++            sql = '1' if self.negated else '0'
++            params = []
++        else:
++            query = self.query.exists(using=connection.alias)
++            sql, params = super().as_sql(
++                compiler,
++                connection,
++                template=template,
++                query=query,
++                **extra_context,
++            )
+         if self.negated:
+             sql = 'NOT {}'.format(sql)
+         return sql, params
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..b2a6970c0d
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,11 @@
++
++from django.db import models
++
++# Assuming MyModel is defined somewhere
++class MyModel(models.Model):
++    name = models.CharField(max_length=100)
++
++qs = MyModel.objects.filter(~models.Exists(MyModel.objects.none()), name='test')
++print(qs)
++print(qs.query)
++print('Script completed successfully, no errors.')
+\ No newline at end of file

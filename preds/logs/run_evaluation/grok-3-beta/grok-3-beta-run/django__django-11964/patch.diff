@@ -1,0 +1,84 @@
+diff --git a/django/db/models/fields/__init__.py b/django/db/models/fields/__init__.py
+index d610dc86f0..c8bb94382c 100644
+--- a/django/db/models/fields/__init__.py
++++ b/django/db/models/fields/__init__.py
+@@ -1010,6 +1010,12 @@ class CharField(Field):
+     def to_python(self, value):
+         if isinstance(value, str) or value is None:
+             return value
++        try:
++            import enum
++            if isinstance(value, enum.Enum):
++                return value.value
++        except ImportError:
++            pass
+         return str(value)
+ 
+     def get_prep_value(self, value):
+@@ -1769,6 +1775,12 @@ class IntegerField(Field):
+     def to_python(self, value):
+         if value is None:
+             return value
++        try:
++            import enum
++            if isinstance(value, enum.Enum):
++                value = value.value
++        except ImportError:
++            pass
+         try:
+             return int(value)
+         except (TypeError, ValueError):
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..05a9674b11
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,26 @@
++
++import django
++from django.db import models
++from django.utils.translation import gettext_lazy as _
++import os
++
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'settings')
++django.setup()
++
++class MyChoice(models.TextChoices):
++    FIRST_CHOICE = "first", _("The first choice, it is")
++    SECOND_CHOICE = "second", _("The second choice, it is")
++
++class MyObject(models.Model):
++    my_str_value = models.CharField(max_length=10, choices=MyChoice.choices)
++
++# Test code
++try:
++    my_object = MyObject.objects.create(my_str_value=MyChoice.FIRST_CHOICE)
++    print(f'Created object value: {my_object.my_str_value}')
++    print(f'Type of value: {type(my_object.my_str_value).__name__}')
++    retrieved_object = MyObject.objects.last()
++    print(f'Retrieved object value: {retrieved_object.my_str_value}')
++    print(f'Type of value: {type(retrieved_object.my_str_value).__name__}')
++except Exception as e:
++    print(f'Error: {e}')
+\ No newline at end of file
+diff --git a/settings.py b/settings.py
+new file mode 100644
+index 0000000000..86df1760fd
+--- /dev/null
++++ b/settings.py
+@@ -0,0 +1,14 @@
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++]
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': ':memory:',
++    }
++}
++
++SECRET_KEY = 'test-secret-key'
+\ No newline at end of file

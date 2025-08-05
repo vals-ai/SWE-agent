@@ -1,0 +1,75 @@
+diff --git a/additional_test.py b/additional_test.py
+new file mode 100644
+index 00000000..9a165dd7
+--- /dev/null
++++ b/additional_test.py
+@@ -0,0 +1,32 @@
++
++import xarray as xr
++
++# Test with multiple objects and different types
++class HasValues1(object):
++    values = 10
++
++class HasValues2(object):
++    values = 'test'
++
++class NoValues(object):
++    pass
++
++# Create DataArray with multiple entries
++multi_indexed = xr.DataArray([None, None, None])
++
++# Assign different types of objects
++multi_indexed.loc[{'dim_0': 0}] = HasValues1()
++multi_indexed.loc[{'dim_0': 1}] = HasValues2()
++multi_indexed.loc[{'dim_0': 2}] = NoValues()
++
++# Print results
++print('Multi indexed values:', multi_indexed.values)
++
++# Test with nested objects
++class NestedValues(object):
++    def __init__(self):
++        self.values = HasValues1()
++
++nested_indexed = xr.DataArray([None])
++nested_indexed.loc[{'dim_0': 0}] = NestedValues()
++print('Nested indexed values:', nested_indexed.values)
+\ No newline at end of file
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 00000000..82e254b8
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,13 @@
++
++import xarray as xr
++
++good_indexed, bad_indexed = xr.DataArray([None]), xr.DataArray([None])
++
++class HasValues(object):
++    values = 5
++    
++good_indexed.loc[{'dim_0': 0}] = set()
++bad_indexed.loc[{'dim_0': 0}] = HasValues()
++
++print('Good indexed values:', good_indexed.values)
++print('Bad indexed values:', bad_indexed.values)
+\ No newline at end of file
+diff --git a/xarray/core/variable.py b/xarray/core/variable.py
+index 45553eb9..b04bfe8c 100644
+--- a/xarray/core/variable.py
++++ b/xarray/core/variable.py
+@@ -217,8 +217,9 @@ def as_compatible_data(data, fastpath=False):
+     if isinstance(data, timedelta):
+         data = np.timedelta64(getattr(data, "value", data), "ns")
+ 
+-    # we don't want nested self-described arrays
+-    data = getattr(data, "values", data)
++    # we don't want nested self-described arrays, but only extract 'values' for recognized types
++    if isinstance(data, (pd.Series, pd.DataFrame, xr.DataArray, xr.Dataset)):
++        data = getattr(data, "values", data)
+ 
+     if isinstance(data, np.ma.MaskedArray):
+         mask = np.ma.getmaskarray(data)

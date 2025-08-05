@@ -1,0 +1,164 @@
+diff --git a/db.sqlite3 b/db.sqlite3
+new file mode 100644
+index 0000000000..f499f81117
+Binary files /dev/null and b/db.sqlite3 differ
+diff --git a/django/core/serializers/python.py b/django/core/serializers/python.py
+index 36048601af..7fd0c4ab3a 100644
+--- a/django/core/serializers/python.py
++++ b/django/core/serializers/python.py
+@@ -79,7 +79,7 @@ class Serializer(base.Serializer):
+                     return self._value_from_field(value, value._meta.pk)
+ 
+                 def queryset_iterator(obj, field):
+-                    return getattr(obj, field.name).only("pk").iterator()
++                    return getattr(obj, field.name).iterator()  # Avoid deferring fields to prevent conflict with select_related
+ 
+             m2m_iter = getattr(obj, "_prefetched_objects_cache", {}).get(
+                 field.name,
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..7813dd0009
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,42 @@
++
++import os
++import django
++from django.core import serializers
++
++# Configure Django settings
++os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'settings')
++django.setup()
++
++from django.db import migrations
++
++# Apply migrations programmatically
++try:
++    from django.db.migrations.executor import MigrationExecutor
++    from django.db import connections
++    connection = connections['default']
++    executor = MigrationExecutor(connection)
++    executor.migrate([('test_app', '0001_initial')])
++    print("Migrations applied successfully.")
++except Exception as e:
++    print(f"Error applying migrations: {e}")
++
++try:
++    from django.apps import apps
++    apps.get_app_config('test_app')
++except LookupError:
++    print("App not found, migrations might not be applied.")
++
++# Import models after setup
++from test_app.models import TestTag, Test, TestTagMaster
++
++# Create test data
++tag_master = TestTagMaster.objects.create(name="master")
++tag = TestTag.objects.create(name="tag", master=tag_master)
++test = Test.objects.create(name="test")
++test.tags.add(tag)
++test.save()
++
++# Serialize the test object
++serialized_data = serializers.serialize("json", [test])
++print(serialized_data)
++print("Script completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/settings.py b/settings.py
+new file mode 100644
+index 0000000000..f432be8ced
+--- /dev/null
++++ b/settings.py
+@@ -0,0 +1,17 @@
++
++import os
++
++SECRET_KEY = 'test-secret-key'
++
++INSTALLED_APPS = [
++    'django.contrib.contenttypes',
++    'django.contrib.auth',
++    'test_app',
++]
++
++DATABASES = {
++    'default': {
++        'ENGINE': 'django.db.backends.sqlite3',
++        'NAME': os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db.sqlite3'),
++    }
++}
+\ No newline at end of file
+diff --git a/test_app/__init__.py b/test_app/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/migrations/0001_initial.py b/test_app/migrations/0001_initial.py
+new file mode 100644
+index 0000000000..7ab1866d01
+--- /dev/null
++++ b/test_app/migrations/0001_initial.py
+@@ -0,0 +1,34 @@
++
++from django.db import migrations, models
++import django.db.models.deletion
++
++class Migration(migrations.Migration):
++    initial = True
++
++    dependencies = []
++
++    operations = [
++        migrations.CreateModel(
++            name='TestTagMaster',
++            fields=[
++                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
++                ('name', models.CharField(max_length=120)),
++            ],
++        ),
++        migrations.CreateModel(
++            name='TestTag',
++            fields=[
++                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
++                ('name', models.CharField(max_length=120)),
++                ('master', models.ForeignKey(null=True, on_delete=django.db.models.deletion.SET_NULL, to='test_app.testtagmaster')),
++            ],
++        ),
++        migrations.CreateModel(
++            name='Test',
++            fields=[
++                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
++                ('name', models.CharField(max_length=120)),
++                ('tags', models.ManyToManyField(blank=True, to='test_app.testtag')),
++            ],
++        ),
++    ]
+\ No newline at end of file
+diff --git a/test_app/migrations/__init__.py b/test_app/migrations/__init__.py
+new file mode 100644
+index 0000000000..e69de29bb2
+diff --git a/test_app/models.py b/test_app/models.py
+new file mode 100644
+index 0000000000..c893975046
+--- /dev/null
++++ b/test_app/models.py
+@@ -0,0 +1,20 @@
++
++from django.db import models
++
++class TestTagManager(models.Manager):
++    def get_queryset(self):
++        qs = super().get_queryset()
++        qs = qs.select_related("master")  # follow master when retrieving object by default
++        return qs
++
++class TestTagMaster(models.Model):
++    name = models.CharField(max_length=120)
++
++class TestTag(models.Model):
++    objects = TestTagManager()
++    name = models.CharField(max_length=120)
++    master = models.ForeignKey(TestTagMaster, on_delete=models.SET_NULL, null=True)
++
++class Test(models.Model):
++    name = models.CharField(max_length=120)
++    tags = models.ManyToManyField(TestTag, blank=True)
+\ No newline at end of file

@@ -1,0 +1,35 @@
+diff --git a/reproduce_latex_bug.py b/reproduce_latex_bug.py
+new file mode 100644
+index 0000000000..9f2d26bd7b
+--- /dev/null
++++ b/reproduce_latex_bug.py
+@@ -0,0 +1,7 @@
++
++from sympy.parsing.latex import parse_latex
++
++latex_expr = "\\frac{\\frac{a^3+b}{c}}{\\frac{1}{c^2}}"
++parsed_expr = parse_latex(latex_expr)
++print(parsed_expr)
++print("Script completed successfully, no errors.")
+\ No newline at end of file
+diff --git a/sympy/parsing/latex/_parse_latex_antlr.py b/sympy/parsing/latex/_parse_latex_antlr.py
+index 2e4a45ad20..2bbe281bdc 100644
+--- a/sympy/parsing/latex/_parse_latex_antlr.py
++++ b/sympy/parsing/latex/_parse_latex_antlr.py
+@@ -5,6 +5,7 @@
+ import sympy
+ from sympy.external import import_module
+ from sympy.printing.str import StrPrinter
++from sympy.core.expr import UnevaluatedExpr
+ from sympy.physics.quantum.state import Bra, Ket
+ 
+ from .errors import LaTeXParsingError
+@@ -382,7 +383,7 @@ def convert_frac(frac):
+ 
+     expr_top = convert_expr(frac.upper)
+     expr_bot = convert_expr(frac.lower)
+-    inverse_denom = sympy.Pow(expr_bot, -1, evaluate=False)
++    inverse_denom = sympy.Pow(sympy.UnevaluatedExpr(expr_bot), -1, evaluate=False)
+     if expr_top == 1:
+         return inverse_denom
+     else:

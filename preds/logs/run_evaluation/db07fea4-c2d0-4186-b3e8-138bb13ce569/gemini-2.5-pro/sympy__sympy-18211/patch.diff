@@ -1,0 +1,15 @@
+diff --git a/sympy/solvers/tests/test_solveset.py b/sympy/solvers/tests/test_solveset.py
+index af25d6b35d..c5d8cf9e13 100644
+--- a/sympy/solvers/tests/test_solveset.py
++++ b/sympy/solvers/tests/test_solveset.py
+@@ -996,6 +996,10 @@ def test_solveset():
+                                                   S.Integers)
+     # issue 13825
+     assert solveset(x**2 + f(0) + 1, x) == {-sqrt(-f(0) - 1), sqrt(-f(0) - 1)}
++    # Test for issue originally reported in PR 17771
++    var_n = Symbol('n')
++    assert solveset(Eq(var_n*cos(var_n) - 3*sin(var_n), 0), var_n, domain=S.Reals) == \
++        ConditionSet(var_n, Eq(var_n*cos(var_n) - 3*sin(var_n), 0), S.Reals)
+ 
+ 
+ def test__solveset_multi():

@@ -1,0 +1,120 @@
+diff --git a/django/utils/numberformat.py b/django/utils/numberformat.py
+index 88b35fc435..d1a80f616d 100644
+--- a/django/utils/numberformat.py
++++ b/django/utils/numberformat.py
+@@ -1,4 +1,4 @@
+-from decimal import Decimal
++from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
+ 
+ from django.conf import settings
+ from django.utils.safestring import mark_safe
+@@ -24,28 +24,58 @@ def format(number, decimal_sep, decimal_pos=None, grouping=0, thousand_sep='',
+     # Make the common case fast
+     if isinstance(number, int) and not use_grouping and not decimal_pos:
+         return mark_safe(number)
+-    # sign
+     sign = ''
++    # Convert to string early to extract sign, but use 'number' for calculations.
++    str_rep = str(number)
++    if str_rep.startswith('-'):
++        sign = '-'
++        str_rep = str_rep[1:] # Keep sign-stripped version for potential use
++    # The final 'str_number' for formatting will be determined below.
+     if isinstance(number, Decimal):
+-        # Format values with more than 200 digits (an arbitrary cutoff) using
+-        # scientific notation to avoid high memory usage in {:f}'.format().
+         _, digits, exponent = number.as_tuple()
+-        if abs(exponent) + len(digits) > 200:
+-            number = '{:e}'.format(number)
+-            coefficient, exponent = number.split('e')
+-            # Format the coefficient.
+-            coefficient = format(
+-                coefficient, decimal_sep, decimal_pos, grouping,
+-                thousand_sep, force_grouping, use_l10n,
+-            )
+-            return '{}e{}'.format(coefficient, exponent)
++        adjusted_exponent = number.adjusted()
++        needs_sci_check_magnitude = abs(adjusted_exponent) + len(digits) > 200
++        needs_sci_check_positive_mem = adjusted_exponent > 200
++
++        use_scientific = False
++        if decimal_pos is None:
++            if needs_sci_check_magnitude:
++                use_scientific = True
++        else: # decimal_pos is not None
++            if needs_sci_check_positive_mem:
++                use_scientific = True
++            elif needs_sci_check_magnitude:
++                threshold = Decimal('0.5') * Decimal(10)**(-decimal_pos)
++                if abs(number) >= threshold:
++                    use_scientific = True
++
++        if use_scientific:
++            # ... scientific path ...
++            # Ensure we use the Decimal value, not str_rep here
++            e_formatted = '{:e}'.format(number) # Use number directly
++            if e_formatted.startswith('-'): e_formatted = e_formatted[1:]
++            coefficient, e_exponent = e_formatted.split('e')
++            coeff_decimal = Decimal(coefficient)
++            # ... rest of scientific formatting ...
++            if decimal_pos is not None:
++                quantizer = Decimal('1') / (Decimal('10') ** decimal_pos)
++                coeff_rounded = coeff_decimal.quantize(quantizer, rounding=ROUND_HALF_UP)
++                coefficient_formatted = '{:f}'.format(coeff_rounded)
++                if '.' not in coefficient_formatted: coefficient_formatted += '.'
++                current_decimals = len(coefficient_formatted.split('.')[-1])
++                coefficient_formatted += '0' * (decimal_pos - current_decimals)
++            else:
++                coefficient_formatted = '{:f}'.format(coeff_decimal)
++                if '.' in coefficient_formatted and all(c == '0' for c in coefficient_formatted.split('.')[1]):
++                    coefficient_formatted = coefficient_formatted.split('.')[0]
++            return sign + coefficient_formatted + 'e' + e_exponent
+         else:
+-            str_number = '{:f}'.format(number)
++            # Standard formatting path - use str_rep to preserve subclass __str__
++            # The sign is already removed from str_rep
++            str_number = '{:f}'.format(abs(number))
+     else:
+-        str_number = str(number)
+-    if str_number[0] == '-':
+-        sign = '-'
+-        str_number = str_number[1:]
++        # Use pre-calculated sign-stripped string representation
++        str_number = str_rep
+     # decimal part
+     if '.' in str_number:
+         int_part, dec_part = str_number.split('.')
+diff --git a/reproduce.py b/reproduce.py
+new file mode 100644
+index 0000000000..08b2107c93
+--- /dev/null
++++ b/reproduce.py
+@@ -0,0 +1,8 @@
++from django.conf import settings
++settings.configure()
++
++from decimal import Decimal
++from django.utils.numberformat import format as nformat
++
++print(nformat(Decimal('1e-199'), '.', decimal_pos=2))
++print(nformat(Decimal('1e-200'), '.', decimal_pos=2))
+\ No newline at end of file
+diff --git a/tests/utils_tests/test_numberformat.py b/tests/utils_tests/test_numberformat.py
+index 3d656025ab..25b0281435 100644
+--- a/tests/utils_tests/test_numberformat.py
++++ b/tests/utils_tests/test_numberformat.py
+@@ -79,6 +79,14 @@ class TestNumberFormat(SimpleTestCase):
+             '10,000,000,000,000,000.00'
+         )
+         self.assertEqual(nformat(Decimal('3.'), '.'), '3')
++        # Very small numbers with decimal_pos (ticket #34675).
++        self.assertEqual(nformat(Decimal('1e-199'), '.', decimal_pos=2), '0.00')
++        self.assertEqual(nformat(Decimal('1e-200'), '.', decimal_pos=2), '0.00')
++        self.assertEqual(nformat(Decimal('-1e-200'), '.', decimal_pos=2), '-0.00')
++        self.assertEqual(nformat(Decimal('1e-201'), '.', decimal_pos=2), '0.00')
++        # Check that scientific notation is still used when decimal_pos is None.
++        self.assertEqual(nformat(Decimal('1e-200'), '.'), '1e-200')
++        self.assertEqual(nformat(Decimal('1e-201'), '.'), '1e-201')
+         self.assertEqual(nformat(Decimal('3.0'), '.'), '3.0')
+         # Very large & small numbers.
+         tests = [

@@ -1,0 +1,20 @@
+diff --git a/requests/sessions.py b/requests/sessions.py
+index d701ff2e..a4e55aa9 100644
+--- a/requests/sessions.py
++++ b/requests/sessions.py
+@@ -360,9 +360,14 @@ class Session(SessionRedirectMixin):
+         if self.trust_env and not auth and not self.auth:
+             auth = get_netrc_auth(request.url)
+ 
++        # Decode method if it's bytes
++        if isinstance(request.method, bytes):
++            method_str = request.method.decode('ascii')
++        else:
++            method_str = request.method
+         p = PreparedRequest()
+         p.prepare(
+-            method=request.method.upper(),
++            method=method_str.upper(),
+             url=request.url,
+             files=request.files,
+             data=request.data,

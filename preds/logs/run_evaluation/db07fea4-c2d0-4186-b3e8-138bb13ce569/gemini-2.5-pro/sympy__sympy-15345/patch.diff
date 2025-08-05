@@ -1,0 +1,26 @@
+diff --git a/sympy/printing/mathematica.py b/sympy/printing/mathematica.py
+index ea7e3a2d94..c92500c144 100644
+--- a/sympy/printing/mathematica.py
++++ b/sympy/printing/mathematica.py
+@@ -31,6 +31,8 @@
+     "asech": [(lambda x: True, "ArcSech")],
+     "acsch": [(lambda x: True, "ArcCsch")],
+     "conjugate": [(lambda x: True, "Conjugate")],
++    "Min": [(lambda *x: True, "Min")],
++    "Max": [(lambda *x: True, "Max")],
+ 
+ }
+ 
+@@ -93,6 +95,12 @@ def _print_list(self, expr):
+     _print_tuple = _print_list
+     _print_Tuple = _print_list
+ 
++    def _print_Min(self, expr):
++        return 'Min[%s]' % ', '.join(map(self._print, expr.args))
++
++    def _print_Max(self, expr):
++        return 'Max[%s]' % ', '.join(map(self._print, expr.args))
++
+     def _print_Function(self, expr):
+         if expr.func.__name__ in self.known_functions:
+             cond_mfunc = self.known_functions[expr.func.__name__]

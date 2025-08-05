@@ -1,0 +1,23 @@
+diff --git a/pylint/checkers/similar.py b/pylint/checkers/similar.py
+index c65b1c893..748c23229 100644
+--- a/pylint/checkers/similar.py
++++ b/pylint/checkers/similar.py
+@@ -813,6 +813,8 @@ class SimilarChecker(BaseChecker, Similar, MapReduceMixin):
+ 
+     def open(self):
+         """init the checkers: reset linesets and statistics information"""
++        if self.min_lines == 0:
++            return  # Disable duplicate code check if min-similarity-lines is 0
+         self.linesets = []
+         self.stats = self.linter.add_stats(
+             nb_duplicated_lines=0, percent_duplicated_lines=0
+@@ -919,6 +921,9 @@ def Run(argv=None):
+             ignore_signatures = True
+     if not args:
+         usage(1)
++    if min_lines == 0:
++        print("Duplicate code check disabled (min-similarity-lines=0)")
++        sys.exit(0)
+     sim = Similar(
+         min_lines, ignore_comments, ignore_docstrings, ignore_imports, ignore_signatures
+     )
