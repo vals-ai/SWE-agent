@@ -6,7 +6,7 @@ because of circular dependencies.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Dict, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict
@@ -16,6 +16,7 @@ class StepOutput(BaseModel):
     thought: str = ""
     action: str = ""
     output: str = ""
+    items: list[dict[str, Any]] = []
     observation: str = ""
     execution_time: float = 0.0
     done: bool = False
@@ -61,6 +62,7 @@ class HistoryItem(_HistoryItem, total=False):
     agent: str
     is_demo: bool
     thought: str
+    items: list[dict[str, Any]]
     action: str | None
     tool_calls: list[dict[str, str]] | None
     tool_call_ids: list[str] | None

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sweagent.types import AgentInfo, StepOutput, Trajectory
 
@@ -46,6 +46,7 @@ class AbstractAgentHook:
         action: str = "",
         tool_calls: list[dict[str, str]] | None = None,
         tool_call_ids: list[str] | None = None,
+        items: list[dict[str, Any]] | None = None,
     ): ...
 
     def on_setup_done(self): ...
@@ -114,6 +115,7 @@ class CombinedAgentHook(AbstractAgentHook):
         is_demo: bool = False,
         thought: str = "",
         action: str = "",
+        items: list[dict[str, Any]] | None = None,
         tool_calls: list[dict[str, str]] | None = None,
         tool_call_ids: list[str] | None = None,
     ):
@@ -128,6 +130,7 @@ class CombinedAgentHook(AbstractAgentHook):
                 action=action,
                 tool_calls=tool_calls,
                 tool_call_ids=tool_call_ids,
+                items=items,
             )
 
     def on_setup_done(self):

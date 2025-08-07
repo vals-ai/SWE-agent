@@ -148,8 +148,6 @@ class OpenAIModel(AbstractModel):
         """Handle streaming responses by collecting chunks and building complete response"""
         self._sleep()
 
-        self.logger.info(f"Messages: {messages}")
-
         request_params = {
             "model": self.config.name,
             "input": messages,
@@ -160,6 +158,8 @@ class OpenAIModel(AbstractModel):
             },
             "reasoning": {"effort": "medium"},
         }
+
+        # self.logger.info(f"Request params: {request_params}")
 
         valid_tools = self._validate_and_format_tools()
         if valid_tools:
@@ -191,6 +191,7 @@ class OpenAIModel(AbstractModel):
         complete_content = ""
         tool_calls = []
         tool_names = []
+        items = []
         input_tokens = 0
         output_tokens = 0
 
@@ -202,6 +203,7 @@ class OpenAIModel(AbstractModel):
                     tool_calls.append(
                         {
                             "id": event.item.id,
+                            "call_id": event.item.call_id,
                             "type": "function",
                             "function": {
                                 "name": event.item.name,
@@ -211,6 +213,9 @@ class OpenAIModel(AbstractModel):
                     )
                     if event.item.name not in tool_names:
                         tool_names.append(event.item.name)
+                else:
+                    items.append(event.item.model_dump())
+
             elif event.type == "response.function_call_arguments.delta":
                 if tool_calls:
                     last_tool_call = tool_calls[-1]
@@ -219,17 +224,29 @@ class OpenAIModel(AbstractModel):
                 pass
             elif event.type == "response.output_item.done":
                 pass
-            elif event.type == "response.completed":
+            if event.type == "response.completed":
                 response = event.response
+
                 input_tokens = response.usage.input_tokens
                 output_tokens = response.usage.output_tokens
 
-        self.logger.info(f"Complete streaming response: {complete_content}")
+        self.logger.info(f"Model response: {response.output}")
 
-        outputs = [{"message": complete_content}]
+        outputs = [{"message": response.output_text}]
+
         if tool_calls:
             outputs[0]["tool_calls"] = tool_calls
-            self.logger.info(f"Tool calls: {tool_calls}")
+        self.logger.info(f"Tool calls: {tool_calls}")
+
+        items = []
+        for item in response.output:
+            items.append(item.model_dump())
+
+        outputs[0]["items"] = items
+
+        # if items:
+        #     outputs[0]["items"] = items
+        #     self.logger.info(f"Items: {items}")
 
         input_cost_for_turn = (self.config.input_cost * input_tokens) / MILLION
         output_cost_for_turn = (self.config.output_cost * output_tokens) / MILLION
@@ -256,6 +273,8 @@ class OpenAIModel(AbstractModel):
         outputs = []
         for _ in range(n):
             outputs.extend(self._single_query_streaming(messages))
+
+        # self.logger.info(f"Result: {outputs}")
         return outputs
 
     def query(
@@ -301,6 +320,7 @@ class OpenAIModel(AbstractModel):
                 result = self._query(messages, n=n, temperature=temperature)
         if n is None or n == 1:
             return result[0]
+
         return result
 
     def _history_to_messages(
@@ -309,9 +329,12 @@ class OpenAIModel(AbstractModel):
     ) -> list[dict[str, Any]]:
         """Format history for Responses API - similar to Together provider but for Responses API"""
 
+        # self.logger.info(f"Before history to messages: {history[1:]}")
+
         history = copy.deepcopy(history)
 
         def get_role(history_item: dict[str, Any]) -> str:
+            # self.logger.info(f"History item: {history_item}")
             if history_item["role"] == "system":
                 return "user" if self.config.convert_system_to_user else "system"
             if history_item["role"] == "tool":
@@ -320,62 +343,50 @@ class OpenAIModel(AbstractModel):
 
         messages = []
         for history_item in history:
+            # self.logger.info(f"History item: {history_item}")
             role = get_role(history_item)
             content = history_item.get("content", "")
 
-            if history_item.get("is_demo", False):
-                demo_role = "user" if role == "tool" else role
-                message: dict[str, Any] = {"role": demo_role, "content": content}
-
-                if "cache_control" in history_item:
-                    message["cache_control"] = history_item["cache_control"]
+            if role != "tool":
+                message: dict[str, Any] = {"role": role, "content": content}
 
                 messages.append(message)
-                continue
 
-            if role == "tool":
-                tool_call_ids = history_item.get("tool_call_ids", [])
-                if tool_call_ids:
+            for item in history_item.get("items", []):
+                if item["type"] == "reasoning":
+                    reasoning_item = {
+                        "id": item["id"],
+                        "type": item["type"],
+                        "content": item["encrypted_content"],
+                        "summary": item["summary"],
+                    }
+
+                    self.logger.info(f"Reasoning item: {reasoning_item}")
+
+                    messages.append(reasoning_item)
+                else:
+                    self.logger.info(f"Not reasoning item found: {item}")
+                    messages.append(item)
+
+                if item["type"] != "function_call":
+                    continue
+
+            if role == "tool" and (tool_calls := history_item.get("tool_calls")):
+                for tool_call in tool_calls:
                     raw_observation = content
                     if content.startswith("Observation: "):
                         raw_observation = content[len("Observation: ") :]
 
-                    messages.append(
-                        {
-                            "role": "tool",
-                            "tool_call_id": tool_call_ids[0],
-                            "content": raw_observation,
-                        }
-                    )
-                continue
+                    tool_call_output = {
+                        "type": "function_call_output",
+                        "call_id": tool_call["call_id"],
+                        "output": raw_observation,
+                    }
 
-            message: dict[str, Any] = {"role": role, "content": content}
+                    messages.append(tool_call_output)
 
-            if role == "assistant" and (tool_calls := history_item.get("tool_calls")):
-                message["content"] = None
-                message["tool_calls"] = []
+                    self.logger.info(f"Tool call output: {tool_call_output}")
 
-                for tool_call in tool_calls:
-                    message["tool_calls"].append(
-                        {
-                            "id": tool_call["id"],
-                            "type": "function",
-                            "function": {
-                                "name": tool_call["function"]["name"],
-                                "arguments": tool_call["function"]["arguments"],
-                            },
-                        }
-                    )
+        self.logger.info(f"After history to messages: {messages}")
 
-                if "cache_control" in history_item:
-                    message["cache_control"] = history_item["cache_control"]
-                messages.append(message)
-                continue
-
-            if "cache_control" in history_item:
-                message["cache_control"] = history_item["cache_control"]
-
-            messages.append(message)
-
-        # self.logger.info(f"{messages}")
         return messages

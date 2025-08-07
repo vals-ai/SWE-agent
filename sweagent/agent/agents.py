@@ -764,6 +764,7 @@ class DefaultAgent(AbstractAgent):
                 "thought": step.thought,
                 "action": step.action,
                 "agent": self.name,
+                "items": step.items,
                 "tool_calls": step.tool_calls,
                 "message_type": "action",
             },
@@ -1130,6 +1131,8 @@ class DefaultAgent(AbstractAgent):
             if output.get("tool_calls") is not None:
                 step.tool_call_ids = [call["id"] for call in output["tool_calls"]]
                 step.tool_calls = output["tool_calls"]
+            if output.get("items") is not None:
+                step.items = output["items"]
             self.logger.info(
                 f"💭 THOUGHT\n{step.thought}\n\n🎬 ACTION\n{step.action.strip()}"
             )
