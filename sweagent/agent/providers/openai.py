@@ -101,10 +101,10 @@ class OpenAIModel(AbstractModel):
             GLOBAL_STATS.last_query_timestamp = time.time()
 
     def _validate_and_format_tools(self) -> list[dict] | None:
-        """Validate and format tools for OpenAI Responses API.
+        """Validate and format tools for OpenAI Chat Completions API.
 
         Returns:
-            List of valid tools in the format expected by OpenAI Responses API, or None if no valid tools.
+            List of valid tools in the format expected by OpenAI Chat Completions API, or None if no valid tools.
         """
         if not self.tools.use_function_calling or not self.tools.tools:
             return None
@@ -118,12 +118,14 @@ class OpenAIModel(AbstractModel):
             ):
                 function_data = tool["function"]
                 if "name" in function_data:
-                    # Format for Responses API
+                    # Format for Chat Completions API
                     formatted_tool = {
                         "type": "function",
-                        "name": function_data["name"],
-                        "description": function_data.get("description", ""),
-                        "parameters": function_data.get("parameters", {}),
+                        "function": {
+                            "name": function_data["name"],
+                            "description": function_data.get("description", ""),
+                            "parameters": function_data.get("parameters", {}),
+                        },
                     }
                     valid_tools.append(formatted_tool)
                 else:
@@ -145,21 +147,14 @@ class OpenAIModel(AbstractModel):
         n: int | None = None,
         temperature: float | None = None,
     ) -> list[dict]:
-        """Handle streaming responses by collecting chunks and building complete response"""
+        """Handle streaming responses using Chat Completions API"""
         self._sleep()
 
         request_params = {
             "model": self.config.name,
-            "input": messages,
+            "messages": messages,
             "stream": True,
-            "text": {
-                "format": {"type": "text"},
-                "verbosity": "medium",
-            },
-            "reasoning": {"effort": "medium"},
         }
-
-        # self.logger.info(f"Request params: {request_params}")
 
         valid_tools = self._validate_and_format_tools()
         if valid_tools:
@@ -173,11 +168,14 @@ class OpenAIModel(AbstractModel):
         if self.config.top_p is not None:
             request_params["top_p"] = self.config.top_p
 
-        if self.config.completion_kwargs:
-            request_params.update(self.config.completion_kwargs)
+        if self.config.max_output_tokens:
+            request_params["max_completion_tokens"] = self.config.max_output_tokens
+
+        if n is not None:
+            request_params["n"] = n
 
         try:
-            response_stream = self.client.responses.create(**request_params)
+            response_stream = self.client.chat.completions.create(**request_params)
         except Exception as e:
             if "context_length" in str(e).lower():
                 raise ContextWindowExceededError from e
@@ -191,62 +189,61 @@ class OpenAIModel(AbstractModel):
         complete_content = ""
         tool_calls = []
         tool_names = []
-        items = []
         input_tokens = 0
         output_tokens = 0
 
-        for event in response_stream:
-            if event.type == "response.output_text.delta":
-                complete_content += event.delta
-            elif event.type == "response.output_item.added":
-                if event.item.type == "function_call":
-                    tool_calls.append(
-                        {
-                            "id": event.item.id,
-                            "call_id": event.item.call_id,
-                            "type": "function",
-                            "function": {
-                                "name": event.item.name,
-                                "arguments": event.item.arguments or "",
-                            },
-                        }
-                    )
-                    if event.item.name not in tool_names:
-                        tool_names.append(event.item.name)
-                else:
-                    items.append(event.item.model_dump())
+        for chunk in response_stream:
+            if chunk.choices and len(chunk.choices) > 0:
+                choice = chunk.choices[0]
 
-            elif event.type == "response.function_call_arguments.delta":
-                if tool_calls:
-                    last_tool_call = tool_calls[-1]
-                    last_tool_call["function"]["arguments"] += event.delta
-            elif event.type == "response.function_call_arguments.done":
-                pass
-            elif event.type == "response.output_item.done":
-                pass
-            if event.type == "response.completed":
-                response = event.response
+                # Handle content delta
+                if choice.delta.content:
+                    complete_content += choice.delta.content
 
-                input_tokens = response.usage.input_tokens
-                output_tokens = response.usage.output_tokens
+                # Handle tool calls
+                if choice.delta.tool_calls:
+                    for tool_call in choice.delta.tool_calls:
+                        # Extend tool_calls list if needed
+                        while len(tool_calls) <= tool_call.index:
+                            tool_calls.append(
+                                {
+                                    "id": "",
+                                    "type": "function",
+                                    "function": {"name": "", "arguments": ""},
+                                }
+                            )
 
-        self.logger.info(f"Model response: {response.output}")
+                        # Update tool call data
+                        if tool_call.id:
+                            tool_calls[tool_call.index]["id"] = tool_call.id
+                        if tool_call.function:
+                            if tool_call.function.name:
+                                tool_calls[tool_call.index]["function"]["name"] = (
+                                    tool_call.function.name
+                                )
+                                if tool_call.function.name not in tool_names:
+                                    tool_names.append(tool_call.function.name)
+                            if tool_call.function.arguments:
+                                tool_calls[tool_call.index]["function"][
+                                    "arguments"
+                                ] += tool_call.function.arguments
 
-        outputs = [{"message": response.output_text}]
+            # Get usage info from the final chunk
+            if hasattr(chunk, "usage") and chunk.usage:
+                input_tokens = chunk.usage.prompt_tokens
+                output_tokens = chunk.usage.completion_tokens
+
+        self.logger.info(f"Model response: {complete_content}")
+
+        outputs = [{"message": complete_content}]
 
         if tool_calls:
-            outputs[0]["tool_calls"] = tool_calls
-        self.logger.info(f"Tool calls: {tool_calls}")
-
-        items = []
-        for item in response.output:
-            items.append(item.model_dump())
-
-        outputs[0]["items"] = items
-
-        # if items:
-        #     outputs[0]["items"] = items
-        #     self.logger.info(f"Items: {items}")
+            # Filter out incomplete tool calls
+            complete_tool_calls = [
+                tc for tc in tool_calls if tc["id"] and tc["function"]["name"]
+            ]
+            outputs[0]["tool_calls"] = complete_tool_calls
+            self.logger.info(f"Tool calls: {complete_tool_calls}")
 
         input_cost_for_turn = (self.config.input_cost * input_tokens) / MILLION
         output_cost_for_turn = (self.config.output_cost * output_tokens) / MILLION
@@ -261,21 +258,118 @@ class OpenAIModel(AbstractModel):
 
         return outputs
 
+    def _single_query(
+        self,
+        messages: list[dict[str, Any]],
+        n: int | None = None,
+        temperature: float | None = None,
+    ) -> list[dict]:
+        """Handle non-streaming responses using Chat Completions API"""
+        self._sleep()
+
+        request_params = {
+            "model": self.config.name,
+            "messages": messages,
+        }
+
+        valid_tools = self._validate_and_format_tools()
+        if valid_tools:
+            request_params["tools"] = valid_tools
+
+        if temperature is not None:
+            request_params["temperature"] = temperature
+        elif self.config.temperature is not None:
+            request_params["temperature"] = self.config.temperature
+
+        if self.config.top_p is not None:
+            request_params["top_p"] = self.config.top_p
+
+        if self.config.max_output_tokens:
+            request_params["max_completion_tokens"] = self.config.max_output_tokens
+
+        if n is not None:
+            request_params["n"] = n
+
+        if self.config.completion_kwargs:
+            request_params.update(self.config.completion_kwargs)
+
+        try:
+            response = self.client.chat.completions.create(**request_params)
+        except Exception as e:
+            if "context_length" in str(e).lower():
+                raise ContextWindowExceededError from e
+            elif "content_policy" in str(e).lower():
+                raise ContentPolicyViolationError from e
+            elif "cost" in str(e).lower():
+                raise CostLimitExceededError from e
+            else:
+                raise
+
+        self.logger.info(f"Response: {response}")
+
+        n_choices = n if n is not None else 1
+        outputs = []
+        input_tokens = response.usage.prompt_tokens
+        output_tokens = response.usage.completion_tokens
+        tool_names = None
+
+        for i in range(n_choices):
+            choice = response.choices[i]
+            output = choice.message.content or ""
+            output_dict = {"message": output}
+
+            if self.tools.use_function_calling and choice.message.tool_calls:
+                tool_calls = [
+                    {
+                        "id": call.id,
+                        "type": call.type,
+                        "function": {
+                            "name": call.function.name,
+                            "arguments": call.function.arguments,
+                        },
+                    }
+                    for call in choice.message.tool_calls
+                ]
+                tool_names = [call["function"]["name"] for call in tool_calls]
+                output_dict["tool_calls"] = tool_calls
+
+            outputs.append(output_dict)
+
+        input_cost_for_turn = (self.config.input_cost * input_tokens) / MILLION
+        output_cost_for_turn = (self.config.output_cost * output_tokens) / MILLION
+        total_cost_for_turn = input_cost_for_turn + output_cost_for_turn
+
+        self._update_stats(
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            cost=total_cost_for_turn,
+            tool_names=tool_names,
+        )
+
+        return outputs
+
     def _query(
         self,
         messages: list[dict[str, str]],
         n: int | None = None,
         temperature: float | None = None,
     ) -> list[dict]:
-        self.logger.info(f"Using streaming for {self.config.name}")
-        if n is None:
-            return self._single_query_streaming(messages, temperature=temperature)
-        outputs = []
-        for _ in range(n):
-            outputs.extend(self._single_query_streaming(messages))
-
-        # self.logger.info(f"Result: {outputs}")
-        return outputs
+        if self.config.streaming:
+            self.logger.info(f"Using streaming for {self.config.name}")
+            if n is None:
+                return self._single_query_streaming(messages, temperature=temperature)
+            outputs = []
+            for _ in range(n):
+                outputs.extend(self._single_query_streaming(messages))
+            return outputs
+        else:
+            self.logger.info(f"Using non-streaming for {self.config.name}")
+            if n is None:
+                return self._single_query(messages, temperature=temperature)
+            outputs = []
+            for _ in range(n):
+                outputs.extend(self._single_query(messages))
+            return outputs
 
     def query(
         self, history: History, n: int = 1, temperature: float | None = None
@@ -327,66 +421,37 @@ class OpenAIModel(AbstractModel):
         self,
         history: History,
     ) -> list[dict[str, Any]]:
-        """Format history for Responses API - similar to Together provider but for Responses API"""
-
-        # self.logger.info(f"Before history to messages: {history[1:]}")
-
+        """Format history for Chat Completions API"""
         history = copy.deepcopy(history)
 
         def get_role(history_item: dict[str, Any]) -> str:
-            # self.logger.info(f"History item: {history_item}")
             if history_item["role"] == "system":
                 return "user" if self.config.convert_system_to_user else "system"
-            if history_item["role"] == "tool":
-                return "tool"
             return history_item["role"]
 
         messages = []
         for history_item in history:
-            # self.logger.info(f"History item: {history_item}")
             role = get_role(history_item)
-            content = history_item.get("content", "")
 
-            if role != "tool":
-                message: dict[str, Any] = {"role": role, "content": content}
+            if role == "tool":
+                message = {
+                    "role": role,
+                    "content": history_item["content"],
+                    # Only one tool call per observation
+                    "tool_call_id": history_item["tool_call_ids"][0],  # type: ignore
+                }
+            elif (tool_calls := history_item.get("tool_calls")) is not None:
+                message = {
+                    "role": role,
+                    "content": history_item["content"],
+                    "tool_calls": tool_calls,
+                }
+            else:
+                message = {"role": role, "content": history_item["content"]}
 
-                messages.append(message)
+            if "cache_control" in history_item:
+                message["cache_control"] = history_item["cache_control"]
 
-            for item in history_item.get("items", []):
-                if item["type"] == "reasoning":
-                    reasoning_item = {
-                        "id": item["id"],
-                        "type": item["type"],
-                        "content": item["encrypted_content"],
-                        "summary": item["summary"],
-                    }
-
-                    self.logger.info(f"Reasoning item: {reasoning_item}")
-
-                    messages.append(reasoning_item)
-                else:
-                    self.logger.info(f"Not reasoning item found: {item}")
-                    messages.append(item)
-
-                if item["type"] != "function_call":
-                    continue
-
-            if role == "tool" and (tool_calls := history_item.get("tool_calls")):
-                for tool_call in tool_calls:
-                    raw_observation = content
-                    if content.startswith("Observation: "):
-                        raw_observation = content[len("Observation: ") :]
-
-                    tool_call_output = {
-                        "type": "function_call_output",
-                        "call_id": tool_call["call_id"],
-                        "output": raw_observation,
-                    }
-
-                    messages.append(tool_call_output)
-
-                    self.logger.info(f"Tool call output: {tool_call_output}")
-
-        self.logger.info(f"After history to messages: {messages}")
+            messages.append(message)
 
         return messages
