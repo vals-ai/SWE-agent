@@ -200,7 +200,7 @@ class LiteLLMModel(AbstractModel):
         n: int | None = None,
         temperature: float | None = None,
     ) -> list[dict]:
-        """Handle streaming-only models like grok-4-0709 by collecting chunks and building complete response"""
+        """Handle streaming-only models by collecting chunks and building complete response"""
         self._sleep()
 
         extra_args = {}
@@ -212,7 +212,7 @@ class LiteLLMModel(AbstractModel):
         completion_kwargs = self.config.completion_kwargs
 
         try:
-            response = litellm.completion(
+            response = litellm.responses(
                 model=self.config.name,
                 messages=messages,
                 temperature=(
@@ -288,7 +288,7 @@ class LiteLLMModel(AbstractModel):
         temperature: float | None = None,
     ) -> list[dict]:
         # Use streaming for grok-4-0709 model which only supports streaming
-        if "grok-4-0709" in self.config.name:
+        if self.config.streaming:
             self.logger.info(f"Using streaming for {self.config.name}")
             if n is None:
                 return self._single_query_streaming(messages, temperature=temperature)
