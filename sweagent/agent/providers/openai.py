@@ -161,7 +161,6 @@ class OpenAIModel(AbstractModel):
         valid_tools = self._validate_and_format_tools()
         if valid_tools:
             request_params["tools"] = valid_tools
-            request_params["tool_choice"] = "required"
 
         if temperature is not None:
             request_params["temperature"] = temperature
