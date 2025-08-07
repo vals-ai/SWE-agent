@@ -154,6 +154,7 @@ class OpenAIModel(AbstractModel):
             "model": self.config.name,
             "messages": messages,
             "stream": True,
+            "stream_options": {"include_usage": True},
         }
 
         valid_tools = self._validate_and_format_tools()
@@ -243,7 +244,6 @@ class OpenAIModel(AbstractModel):
                 tc for tc in tool_calls if tc["id"] and tc["function"]["name"]
             ]
             outputs[0]["tool_calls"] = complete_tool_calls
-            self.logger.info(f"Tool calls: {complete_tool_calls}")
 
         input_cost_for_turn = (self.config.input_cost * input_tokens) / MILLION
         output_cost_for_turn = (self.config.output_cost * output_tokens) / MILLION
@@ -305,8 +305,6 @@ class OpenAIModel(AbstractModel):
             else:
                 raise
 
-        self.logger.info(f"Response: {response}")
-
         n_choices = n if n is not None else 1
         outputs = []
         input_tokens = response.usage.prompt_tokens
@@ -355,7 +353,6 @@ class OpenAIModel(AbstractModel):
         temperature: float | None = None,
     ) -> list[dict]:
         if self.config.streaming:
-            self.logger.info(f"Using streaming for {self.config.name}")
             if n is None:
                 return self._single_query_streaming(messages, temperature=temperature)
             outputs = []
