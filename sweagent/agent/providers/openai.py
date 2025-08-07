@@ -28,6 +28,7 @@ from sweagent.agent.models import (
     GLOBAL_STATS,
     GLOBAL_STATS_LOCK,
 )
+import copy
 
 MILLION = 1000000
 
@@ -147,6 +148,8 @@ class OpenAIModel(AbstractModel):
         """Handle streaming responses by collecting chunks and building complete response"""
         self._sleep()
 
+        self.logger.info(f"Messages: {messages}")
+
         request_params = {
             "model": self.config.name,
             "input": messages,
@@ -209,15 +212,12 @@ class OpenAIModel(AbstractModel):
                     if event.item.name not in tool_names:
                         tool_names.append(event.item.name)
             elif event.type == "response.function_call_arguments.delta":
-                # Append to the last tool call's arguments
                 if tool_calls:
                     last_tool_call = tool_calls[-1]
                     last_tool_call["function"]["arguments"] += event.delta
             elif event.type == "response.function_call_arguments.done":
-                # Arguments are complete, no need to do anything special
                 pass
             elif event.type == "response.output_item.done":
-                # Item is complete, no need to do anything special
                 pass
             elif event.type == "response.completed":
                 response = event.response
@@ -308,13 +308,14 @@ class OpenAIModel(AbstractModel):
         history: History,
     ) -> list[dict[str, Any]]:
         """Format history for Responses API - similar to Together provider but for Responses API"""
-        import copy
 
         history = copy.deepcopy(history)
 
         def get_role(history_item: dict[str, Any]) -> str:
             if history_item["role"] == "system":
                 return "user" if self.config.convert_system_to_user else "system"
+            if history_item["role"] == "tool":
+                return "tool"
             return history_item["role"]
 
         messages = []
@@ -322,12 +323,59 @@ class OpenAIModel(AbstractModel):
             role = get_role(history_item)
             content = history_item.get("content", "")
 
+            if history_item.get("is_demo", False):
+                demo_role = "user" if role == "tool" else role
+                message: dict[str, Any] = {"role": demo_role, "content": content}
+
+                if "cache_control" in history_item:
+                    message["cache_control"] = history_item["cache_control"]
+
+                messages.append(message)
+                continue
+
+            if role == "tool":
+                tool_call_ids = history_item.get("tool_call_ids", [])
+                if tool_call_ids:
+                    raw_observation = content
+                    if content.startswith("Observation: "):
+                        raw_observation = content[len("Observation: ") :]
+
+                    messages.append(
+                        {
+                            "role": "tool",
+                            "tool_call_id": tool_call_ids[0],
+                            "content": raw_observation,
+                        }
+                    )
+                continue
+
             message: dict[str, Any] = {"role": role, "content": content}
+
+            if role == "assistant" and (tool_calls := history_item.get("tool_calls")):
+                message["content"] = None
+                message["tool_calls"] = []
+
+                for tool_call in tool_calls:
+                    message["tool_calls"].append(
+                        {
+                            "id": tool_call["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tool_call["function"]["name"],
+                                "arguments": tool_call["function"]["arguments"],
+                            },
+                        }
+                    )
+
+                if "cache_control" in history_item:
+                    message["cache_control"] = history_item["cache_control"]
+                messages.append(message)
+                continue
 
             if "cache_control" in history_item:
                 message["cache_control"] = history_item["cache_control"]
 
-            if role != "tool":
-                messages.append(message)
+            messages.append(message)
 
+        # self.logger.info(f"{messages}")
         return messages
