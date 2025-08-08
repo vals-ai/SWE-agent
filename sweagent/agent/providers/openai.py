@@ -176,7 +176,9 @@ class OpenAIModel(AbstractModel):
             request_params["n"] = n
 
         try:
-            response_stream = self.client.chat.completions.create(**request_params)
+            response_stream = self.client.chat.completions.create(
+                **request_params, reasoning_effort="high"
+            )
         except Exception as e:
             if "context_length" in str(e).lower():
                 raise ContextWindowExceededError from e
