@@ -36,13 +36,12 @@ MILLION = 1000000
 class OpenAIModel(AbstractModel):
     def __init__(self, args: GenericAPIModelConfig, tools: ToolConfig):
         """Model served by the OpenAI client."""
-        # Always copy config to avoid shared state between different instances
         self.config: GenericAPIModelConfig = args.model_copy(deep=True)
         self.stats = InstanceStats()
+
         self.tools = tools
         self.logger = get_logger("swea-openai", emoji="🤖")
 
-        # Initialize OpenAI client
         self.client = OpenAI(
             api_key=self.config.choose_api_key(),
             base_url=self.config.api_base if self.config.api_base else None,
@@ -51,14 +50,16 @@ class OpenAIModel(AbstractModel):
         if self.config.max_input_tokens is not None:
             self.model_max_input_tokens = self.config.max_input_tokens
         else:
-            # Default values for OpenAI models
-            self.model_max_input_tokens = 128000
+            msg = "Do not support default max input tokens for openai models yet"
+
+            raise ValueError(msg)
 
         if self.config.max_output_tokens is not None:
             self.model_max_output_tokens = self.config.max_output_tokens
         else:
-            # Default values for OpenAI models
-            self.model_max_output_tokens = 4096
+            msg = "Do not support default max output tokens for openai models yet"
+
+            raise ValueError(msg)
 
     @property
     def instance_cost_limit(self) -> float:
@@ -90,6 +91,7 @@ class OpenAIModel(AbstractModel):
 
         if 0 < self.config.per_instance_call_limit < self.stats.api_calls:
             msg = f"API calls {self.stats.api_calls} exceeds limit {self.config.per_instance_call_limit}"
+
             self.logger.warning(msg)
             raise InstanceCallLimitExceededError(msg)
 
@@ -97,6 +99,7 @@ class OpenAIModel(AbstractModel):
         elapsed_time = time.time() - GLOBAL_STATS.last_query_timestamp
         if elapsed_time < self.config.delay:
             time.sleep(self.config.delay - elapsed_time)
+
         with GLOBAL_STATS_LOCK:
             GLOBAL_STATS.last_query_timestamp = time.time()
 
@@ -163,6 +166,7 @@ class OpenAIModel(AbstractModel):
 
         if temperature is not None:
             request_params["temperature"] = temperature
+
         elif self.config.temperature is not None:
             request_params["temperature"] = self.config.temperature
 
@@ -175,9 +179,11 @@ class OpenAIModel(AbstractModel):
         if n is not None:
             request_params["n"] = n
 
+        reasoning_effort = self.config.reasoning
+
         try:
             response_stream = self.client.chat.completions.create(
-                **request_params, reasoning_effort="high"
+                **request_params, reasoning_effort=reasoning_effort
             )
         except Exception as e:
             if "context_length" in str(e).lower():
@@ -231,7 +237,6 @@ class OpenAIModel(AbstractModel):
                                     "arguments"
                                 ] += tool_call.function.arguments
 
-            # Get usage info from the final chunk
             if hasattr(chunk, "usage") and chunk.usage:
                 input_tokens = chunk.usage.prompt_tokens
                 output_tokens = chunk.usage.completion_tokens
@@ -241,7 +246,6 @@ class OpenAIModel(AbstractModel):
         outputs = [{"message": complete_content}]
 
         if tool_calls:
-            # Filter out incomplete tool calls
             complete_tool_calls = [
                 tc for tc in tool_calls if tc["id"] and tc["function"]["name"]
             ]
