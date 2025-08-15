@@ -6,7 +6,7 @@ because of circular dependencies.
 
 from __future__ import annotations
 
-from typing import Any, Literal, Dict, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel
 from typing_extensions import TypedDict

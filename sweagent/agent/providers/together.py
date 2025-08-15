@@ -69,11 +69,6 @@ class TogetherModel(AbstractModel):
             self.logger.error(msg)
             raise ModelConfigurationError(msg)
 
-    @property
-    def instance_cost_limit(self) -> float:
-        """Cost limit for the model. Returns 0 if there is no limit."""
-        return self.config.per_instance_cost_limit
-
     def _update_stats(
         self,
         *,

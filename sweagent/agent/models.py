@@ -52,6 +52,7 @@ class GenericAPIModelConfig(PydanticBaseModel):
     # Routing to the correct model and correct provider
     name: str
     provider: str
+    streaming: bool = False
 
     # TODO: probably should deprecate these fields since we don't use them internally
     per_instance_cost_limit: float = 0.0
@@ -60,9 +61,10 @@ class GenericAPIModelConfig(PydanticBaseModel):
 
     # Model specific fields
     temperature: float = 0.0
-    top_p: float | None = 1.0
-    max_input_tokens: int | None = 0
-    max_output_tokens: int | None = 0
+    top_p: float = 1.0
+    max_input_tokens: int = 0
+    max_output_tokens: int = 0
+    reasoning: str = "medium"
     completion_kwargs: dict[str, Any] = {}
 
     # Required for now until we get a yaml file going
@@ -612,6 +614,10 @@ def get_model(args: ModelConfig, tools: ToolConfig) -> AbstractModel:
         from sweagent.agent.providers import TogetherModel
 
         return TogetherModel(args, tools)
+    elif args.provider == "openai":
+        from sweagent.agent.providers import OpenAIModel
+
+        return OpenAIModel(args, tools)
 
     from sweagent.agent.providers import LiteLLMModel
 
